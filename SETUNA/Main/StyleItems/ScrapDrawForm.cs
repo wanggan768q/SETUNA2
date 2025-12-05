@@ -86,9 +86,9 @@ namespace SETUNA.Main.StyleItems
                         intPtr2 = graphics.GetHdc();
                         ScrapDrawForm.BitBlt(intPtr2, 0, 0, img.Width, img.Height, intPtr, location.X, location.Y, 1087111200);
                     }
-                    catch (Exception ex)
+                    catch
                     {
-                        throw ex;
+                        throw;
                     }
                     finally
                     {

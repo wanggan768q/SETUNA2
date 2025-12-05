@@ -2,6 +2,7 @@
 using System.ComponentModel;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Runtime.Versioning;
 using System.Text;
 using System.Windows.Forms;
 using com.clearunit;
@@ -9,6 +10,7 @@ using com.clearunit;
 namespace SETUNA.Main.StyleItems
 {
     // Token: 0x02000075 RID: 117
+    [SupportedOSPlatform("windows6.1")]
     public partial class PicasaBar : BaseForm
     {
         // Token: 0x17000091 RID: 145
