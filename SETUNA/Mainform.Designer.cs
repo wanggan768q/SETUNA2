@@ -130,6 +130,7 @@
             this.TopMost = true;
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.Mainform_FormClosing);
             this.Load += new System.EventHandler(this.Mainform_Load);
+            this.Resize += new System.EventHandler(this.Mainform_Resize);
             this.Shown += new System.EventHandler(this.Mainform_Shown);
             this.subMenu.ResumeLayout(false);
             this.ResumeLayout(false);
