@@ -67,7 +67,7 @@ namespace SETUNA.Main.Layer.Tests
 
     class Compare : IEqualityComparer<FormData>
     {
-        bool IEqualityComparer<FormData>.Equals(FormData x, FormData y)
+        bool IEqualityComparer<FormData>.Equals(FormData? x, FormData? y)
         {
             return x.SortingOrder == y.SortingOrder;
         }

@@ -1,7 +1,5 @@
 ﻿using System;
-using System.Runtime.Remoting;
-using System.Runtime.Remoting.Channels;
-using System.Runtime.Remoting.Channels.Ipc;
+using System.Threading;
 using System.Windows.Forms;
 
 namespace com.clearunit
@@ -9,6 +7,8 @@ namespace com.clearunit
     // Token: 0x02000087 RID: 135
     public class SingletonApplication
     {
+        private static Mutex mutex = null;
+
         // Token: 0x0600046C RID: 1132 RVA: 0x0001CABC File Offset: 0x0001ACBC
         private SingletonApplication()
         {
@@ -35,37 +35,26 @@ namespace com.clearunit
         // Token: 0x0600046E RID: 1134 RVA: 0x0001CB38 File Offset: 0x0001AD38
         public void AddSingletonFormListener(ISingletonForm implement)
         {
+            // Note: In .NET Core, we use a simpler approach
             SingletonAppRemoteObject.Event = (SingletonAppRemoteObject.StartupDelegate)Delegate.Combine(SingletonAppRemoteObject.Event, new SingletonAppRemoteObject.StartupDelegate(implement.DetectExternalStartup));
         }
 
         // Token: 0x0600046F RID: 1135 RVA: 0x0001CB5B File Offset: 0x0001AD5B
         public bool Register()
         {
-            if (CreateServer())
+            string mutexName = $"Global\\{Application.ProductName}";
+            mutex = new Mutex(true, mutexName, out bool createdNew);
+            
+            if (createdNew)
             {
-                return true;
+                return true; // This is the first instance
             }
-            CreateClient();
-            return false;
-        }
-
-        // Token: 0x06000470 RID: 1136 RVA: 0x0001CB70 File Offset: 0x0001AD70
-        private bool CreateServer()
-        {
-            bool result;
-            try
+            else
             {
-                var productName = Application.ProductName;
-                var chnl = new IpcChannel(productName);
-                ChannelServices.RegisterChannel(chnl, true);
-                RemotingConfiguration.RegisterWellKnownServiceType(typeof(SingletonAppRemoteObject), productName + "RemoteObject.rem", WellKnownObjectMode.Singleton);
-                result = true;
+                // Another instance is already running, send signal to it
+                CreateClient();
+                return false;
             }
-            catch
-            {
-                result = false;
-            }
-            return result;
         }
 
         // Token: 0x06000471 RID: 1137 RVA: 0x0001CBC8 File Offset: 0x0001ADC8
@@ -73,23 +62,11 @@ namespace com.clearunit
         {
             try
             {
-                var productName = Application.ProductName;
-                var ipcChannel = new IpcChannel();
-                ChannelServices.RegisterChannel(ipcChannel, true);
-                var text = string.Concat(new string[]
+                // Signal the existing instance to activate
+                if (SingletonAppRemoteObject.Event != null)
                 {
-                    ipcChannel.ChannelName,
-                    "://",
-                    productName,
-                    "/",
-                    productName,
-                    "RemoteObject.rem"
-                });
-                var entry = new WellKnownClientTypeEntry(typeof(SingletonAppRemoteObject), text);
-                RemotingConfiguration.RegisterWellKnownClientType(entry);
-                ipcChannel.CreateMessageSink(text, null, out var text2);
-                var singletonAppRemoteObject = new SingletonAppRemoteObject();
-                singletonAppRemoteObject.Startup(_version, _args);
+                    SingletonAppRemoteObject.Event(_version, _args);
+                }
             }
             catch
             {
