@@ -1,0 +1,59 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <UseWPF>true</UseWPF>
+    <ApplicationIcon>SETUNA.ico</ApplicationIcon>
+    <StartupObject>SETUNA.Program</StartupObject>
+    <AssemblyTitle>SETUNA</AssemblyTitle>
+    <AssemblyProduct>SETUNA</AssemblyProduct>
+    <AssemblyCompany>clearup</AssemblyCompany>
+    <AssemblyCopyright>Copyright (C) 2008 CLEARUP</AssemblyCopyright>
+    <AssemblyVersion>3.0.0.6</AssemblyVersion>
+    <AssemblyInformationalVersion>3.0</AssemblyInformationalVersion>
+    <NeutralResourcesLanguage>zh-CN</NeutralResourcesLanguage>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PlatformTarget>x64</PlatformTarget>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugType>full</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DefineConstants>TRACE</DefineConstants>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Costura.Fody" Version="5.7.0" />
+    <PackageReference Include="Fody" Version="6.8.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Svg" Version="3.4.0" />
+    <PackageReference Include="System.Drawing.PSD" Version="0.1.0" />
+    <PackageReference Include="TgaLib" Version="1.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="app.manifest">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Plugins\libwebp_x86.dll" />
+    <EmbeddedResource Include="Plugins\libwebp_x64.dll" />
+  </ItemGroup>
+
+</Project>
