@@ -34,8 +34,14 @@ namespace SETUNA.Plugins
                 using (var fs = new System.IO.FileStream(filename, System.IO.FileMode.Create))
                 {
                     var b = new byte[s.Length];
-                    s.Read(b, 0, b.Length);
-                    fs.Write(b, 0, b.Length);
+                    int totalRead = 0;
+                    while (totalRead < b.Length)
+                    {
+                        int bytesRead = s.Read(b, totalRead, b.Length - totalRead);
+                        if (bytesRead == 0) break;
+                        totalRead += bytesRead;
+                    }
+                    fs.Write(b, 0, totalRead);
                 }
             }
         }
