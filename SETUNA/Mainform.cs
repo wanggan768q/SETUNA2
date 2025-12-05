@@ -633,13 +633,20 @@ namespace SETUNA
             SETUNA.Main.Layer.LayerManager.Instance.Init();
             SETUNA.Main.Cache.CacheManager.Instance.Init();
             delayInitTimer.Start();
+            
+            // 程序启动时默认最小化到托盘
+            StartupMinimizeToTray();
         }
 
-        // Token: 0x06000212 RID: 530 RVA: 0x0000B3B6 File Offset: 0x000095B6
+        // Token: 0x06000212 RID: 0x0000B3B6 File Offset: 0x000095B6
         private void setunaIcon_MouseClick(object sender, MouseEventArgs e)
         {
             if (e.Button == MouseButtons.Left)
             {
+                // 从系统托盘恢复窗口
+                this.Show();
+                this.ShowInTaskbar = true;
+                this.WindowState = FormWindowState.Normal;
                 base.Activate();
                 SETUNA.Main.Layer.LayerManager.Instance.RefreshLayer();
             }
@@ -883,6 +890,72 @@ namespace SETUNA
         // Token: 0x0600021D RID: 541 RVA: 0x0000B888 File Offset: 0x00009A88
         private void Mainform_Shown(object sender, EventArgs e)
         {
+        }
+
+        // 程序启动时最小化到托盘
+        private void StartupMinimizeToTray()
+        {
+            // 延迟执行，确保程序完全启动后再最小化
+            System.Threading.Tasks.Task.Delay(500).ContinueWith(_ =>
+            {
+                this.Invoke(new Action(() =>
+                {
+                    // 设置窗口状态为最小化
+                    this.WindowState = FormWindowState.Minimized;
+                    
+                    // 隐藏窗口，显示托盘图标
+                    this.Hide();
+                    this.ShowInTaskbar = false;
+                    setunaIcon.Visible = true;
+                    
+                    // 显示启动提示
+                    setunaIcon.ShowBalloonTip(3000, "SETUNA2", "SETUNA2已启动并最小化到系统托盘", ToolTipIcon.Info);
+                }));
+            });
+        }
+
+        // 窗口大小变化事件处理
+        private void Mainform_Resize(object sender, EventArgs e)
+        {
+            // 当窗口最小化时，隐藏到系统托盘
+            if (this.WindowState == FormWindowState.Minimized)
+            {
+                this.Hide();
+                this.ShowInTaskbar = false;
+                setunaIcon.Visible = true;
+                
+                // 显示提示信息
+                setunaIcon.ShowBalloonTip(2000, "SETUNA2", "程序已最小化到系统托盘", ToolTipIcon.Info);
+                
+                // 确保热键在窗口隐藏后仍然有效
+                // 在窗口隐藏后重新注册热键，确保消息能正确传递
+                if (optSetuna.ScrapHotKeyEnable)
+                {
+                    // 先注销所有热键
+                    foreach (HotKeyID hotKeyID in Enum.GetValues(typeof(HotKeyID)))
+                    {
+                        if (hotKeyID != HotKeyID.__Count__)
+                        {
+                            optSetuna.UnregistHotKey(this.Handle, hotKeyID);
+                        }
+                    }
+                    
+                    // 延迟重新注册热键，确保窗口状态稳定
+                    System.Threading.Tasks.Task.Delay(100).ContinueWith(_ =>
+                    {
+                        this.Invoke(new Action(() =>
+                        {
+                            foreach (HotKeyID hotKeyID in Enum.GetValues(typeof(HotKeyID)))
+                            {
+                                if (hotKeyID != HotKeyID.__Count__)
+                                {
+                                    optSetuna.RegistHotKey(this.Handle, hotKeyID);
+                                }
+                            }
+                        }));
+                    });
+                }
+            }
         }
 
         // Token: 0x0600021E RID: 542 RVA: 0x0000B88A File Offset: 0x00009A8A
