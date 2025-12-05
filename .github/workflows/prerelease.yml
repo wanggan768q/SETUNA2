@@ -1,0 +1,83 @@
+name: Prerelease Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_suffix:
+        description: '版本后缀 (如: beta, rc1, dev)'
+        required: false
+        default: 'preview'
+      release_notes:
+        description: '发布说明'
+        required: false
+        default: '预发布版本'
+
+jobs:
+  build-prerelease:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+        
+    - name: Get version info
+      id: version
+      run: |
+        $date = Get-Date -Format "yyyyMMdd-HHmm"
+        $version = "v4.0.0-${{ github.event.inputs.version_suffix }}-$date"
+        echo "version=$version" >> $env:GITHUB_OUTPUT
+        
+    - name: Restore dependencies
+      run: dotnet restore SETUNA/SETUNA.csproj
+      
+    - name: Build
+      run: dotnet build SETUNA/SETUNA.csproj --configuration Release --no-restore
+      
+    - name: Publish single-file
+      run: dotnet publish SETUNA/SETUNA.csproj --configuration Release --no-build --output ./publish --self-contained true --runtime win-x64 --property:PublishSingleFile=true --property:IncludeNativeLibrariesForSelfExtract=true
+      
+    - name: Create ZIP package
+      run: |
+        cd publish
+        7z a -tzip ../SETUNA-${{ steps.version.outputs.version }}-win-x64.zip *
+        cd ..
+        
+    - name: Create Prerelease
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ steps.version.outputs.version }}
+        name: "SETUNA ${{ steps.version.outputs.version }} (预发布)"
+        body: |
+          ## 🧪 SETUNA ${{ steps.version.outputs.version }} 预发布版本
+          
+          ### 📝 发布说明
+          ${{ github.event.inputs.release_notes }}
+          
+          ### ⚠️ 注意事项
+          - 这是预发布版本，可能包含未完成的特性
+          - 可能存在稳定性问题
+          - 建议在虚拟机或测试环境中先行测试
+          
+          ### 📦 下载
+          - `SETUNA-${{ steps.version.outputs.version }}-win-x64.zip`: 独立可执行程序包
+          
+          ### 🐛 问题反馈
+          如发现问题，请在 [Issues](https://github.com/tylearymf/SETUNA2/issues) 中反馈
+        files: |
+          SETUNA-${{ steps.version.outputs.version }}-win-x64.zip
+        draft: false
+        prerelease: true
+        
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: SETUNA-${{ steps.version.outputs.version }}-win-x64
+        path: SETUNA-${{ steps.version.outputs.version }}-win-x64.zip
+        retention-days: 7

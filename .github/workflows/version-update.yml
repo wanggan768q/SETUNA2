@@ -1,0 +1,76 @@
+name: Version Update and Changelog
+
+on:
+  push:
+    branches:
+      - main
+      - ConvertNetCore
+  workflow_dispatch:
+
+jobs:
+  update-version:
+    runs-on: ubuntu-latest
+    if: "!startsWith(github.ref, 'refs/tags/')"
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
+        
+    - name: Get next version
+      id: version
+      run: |
+        # 获取当前最新的tag
+        LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v3.0.0")
+        
+        # 提取版本号并增加
+        if [[ $LATEST_TAG =~ v([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
+          MAJOR=${BASH_REMATCH[1]}
+          MINOR=${BASH_REMATCH[2]}
+          PATCH=${BASH_REMATCH[3]}
+          
+          # 根据提交类型决定版本增加方式
+          if [[ "${{ github.event.head_commit.message }}" =~ feat|feature|新增|功能 ]]; then
+            MINOR=$((MINOR + 1))
+            PATCH=0
+          elif [[ "${{ github.event.head_commit.message }}" =~ fix|bugfix|修复|问题 ]]; then
+            PATCH=$((PATCH + 1))
+          else
+            PATCH=$((PATCH + 1))
+          fi
+          
+          NEXT_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+        else
+          NEXT_VERSION="v4.0.1"
+        fi
+        
+        echo "current_version=$LATEST_TAG" >> $GITHUB_OUTPUT
+        echo "next_version=$NEXT_VERSION" >> $GITHUB_OUTPUT
+        
+    - name: Update assembly version
+      run: |
+        # 解析版本号（去掉v前缀）
+        VERSION=$(echo "${{ steps.version.outputs.next_version }}" | sed 's/^v//')
+        
+        # 更新AssemblyInfo.cs中的版本
+        sed -i "s/\[assembly: AssemblyVersion(\"[^\"]*\")\]/[assembly: AssemblyVersion(\"$VERSION.0\")]/" SETUNA/Properties/AssemblyInfo.cs
+        sed -i "s/\[assembly: AssemblyFileVersion(\"[^\"]*\")\]/[assembly: AssemblyFileVersion(\"$VERSION.0\")]/" SETUNA/Properties/AssemblyInfo.cs
+        
+        # 更新.csproj中的版本
+        sed -i "s/<AssemblyVersion>[^<]*<\/AssemblyVersion>/<AssemblyVersion>$VERSION.0<\/AssemblyVersion>/" SETUNA/SETUNA.csproj
+        sed -i "s/<AssemblyInformationalVersion>[^<]*<\/AssemblyInformationalVersion>/<AssemblyInformationalVersion>$VERSION<\/AssemblyInformationalVersion>/" SETUNA/SETUNA.csproj
+        
+    - name: Commit version changes
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add SETUNA/Properties/AssemblyInfo.cs SETUNA/SETUNA.csproj
+        git commit -m "🔖 Bump version to ${{ steps.version.outputs.next_version }}"
+        git push
+        
+    - name: Create Release Tag
+      run: |
+        git tag ${{ steps.version.outputs.next_version }}
+        git push origin ${{ steps.version.outputs.next_version }}

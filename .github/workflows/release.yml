@@ -1,0 +1,92 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+        
+    - name: Restore dependencies
+      run: dotnet restore SETUNA/SETUNA.csproj
+      
+    - name: Build
+      run: dotnet build SETUNA/SETUNA.csproj --configuration Release --no-restore
+      
+    - name: Publish single-file
+      run: dotnet publish SETUNA/SETUNA.csproj --configuration Release --no-build --output ./publish --self-contained true --runtime win-x64 --property:PublishSingleFile=true --property:IncludeNativeLibrariesForSelfExtract=true
+      
+    - name: Create ZIP package
+      run: |
+        cd publish
+        7z a -tzip ../SETUNA-${{ github.ref_name }}-win-x64.zip *
+        cd ..
+        
+    - name: Get version info
+      id: version
+      run: |
+        if ("${{ github.ref }}" -like "refs/tags/*") {
+          $version = "${{ github.ref }}" -replace "refs/tags/", ""
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+          echo "isRelease=true" >> $env:GITHUB_OUTPUT
+        } else {
+          $date = Get-Date -Format "yyyyMMdd-HHmm"
+          $version = "nightly-$date"
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+          echo "isRelease=false" >> $env:GITHUB_OUTPUT
+        }
+      
+    - name: Create Release
+      if: steps.version.outputs.isRelease == 'true'
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ steps.version.outputs.version }}
+        name: SETUNA ${{ steps.version.outputs.version }}
+        body: |
+          ## 🚀 SETUNA ${{ steps.version.outputs.version }} 发布
+          
+          ### 📦 下载
+          - `SETUNA-${{ steps.version.outputs.version }}-win-x64.zip`: 完整独立可执行程序包
+          
+          ### ⚙️ 安装说明
+          1. 下载对应版本的ZIP文件
+          2. 解压缩到任意目录
+          3. 运行 `SETUNA.exe` 即可使用
+          
+          ### 🔧 系统要求
+          - Windows 10 14393 及以上
+          - .NET 9.0 Runtime（已内置于独立包中）
+          
+          ### ✨ 主要特性
+          - 支持高分屏截图
+          - 系统托盘支持
+          - 快捷键操作
+          - 多显示器支持
+          
+          ---
+          📌 详细说明请查看 [README.md](https://github.com/tylearymf/SETUNA2/blob/main/README.md)
+        files: |
+          SETUNA-${{ steps.version.outputs.version }}-win-x64.zip
+        draft: false
+        prerelease: false
+        
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: SETUNA-${{ steps.version.outputs.version }}-win-x64
+        path: SETUNA-${{ steps.version.outputs.version }}-win-x64.zip
+        retention-days: 30
