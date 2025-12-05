@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Runtime.Versioning;
 using System.Windows.Forms;
 
 namespace SETUNA.Main.StyleItems
 {
     // Token: 0x02000016 RID: 22
+    [SupportedOSPlatform("windows6.1")]
     public partial class ScrapPaintLayer : BaseForm, ILayer
     {
         // Token: 0x14000008 RID: 8

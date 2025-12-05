@@ -8,10 +8,12 @@ using System.Windows.Forms;
 using SETUNA.Main.KeyItems;
 using SETUNA.Main.Style;
 using SETUNA.Main.StyleItems;
+using System.Runtime.Versioning;
 
 namespace SETUNA.Main.Option
 {
     // Token: 0x0200003C RID: 60
+    [SupportedOSPlatform("windows6.1")]
     public class SetunaOption : ICloneable
     {
         // Token: 0x06000241 RID: 577 RVA: 0x0000BC18 File Offset: 0x00009E18

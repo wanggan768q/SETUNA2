@@ -47,6 +47,8 @@
 		}
 
         // Token: 0x0400013E RID: 318
+#pragma warning disable CS0649 // 从未对字段"CaptureForm.components"赋值，字段将一直保持其默认值 null
         private global::System.ComponentModel.IContainer components;
+#pragma warning restore CS0649 // 从未对字段"CaptureForm.components"赋值，字段将一直保持其默认值 null
     }
 }

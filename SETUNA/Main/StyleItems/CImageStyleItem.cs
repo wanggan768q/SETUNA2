@@ -74,18 +74,18 @@ namespace SETUNA.Main.StyleItems
                                     Clipboard.SetText(text);
                                 }
                             }
-                            catch (Exception ex)
+                            catch
                             {
-                                throw ex;
+                                throw;
                             }
                         }
                     }
                 }
             }
-            catch (Exception ex2)
+            catch
             {
                 MessageBox.Show(text + "\n无法保存。", Application.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Hand);
-                throw ex2;
+                throw;
             }
             finally
             {

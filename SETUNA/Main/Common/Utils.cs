@@ -3,10 +3,16 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
 using System.Net;
+using System.Net.Http;
 using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
+using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
 using Svg;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Processing;
+using SixLabors.ImageSharp.Formats.Tga;
+using SixLabors.ImageSharp.PixelFormats;
 
 namespace SETUNA.Main
 {
@@ -72,9 +78,18 @@ namespace SETUNA.Main
                             bitmap = SvgDocument.Open<SvgDocument>(stream).Draw();
                             break;
                         case ImageType.PSD:
-                            var psdFile = new System.Drawing.PSD.PsdFile();
-                            psdFile.Load(path);
-                            bitmap = System.Drawing.PSD.ImageDecoder.DecodeImage(psdFile);
+                            // PSD support temporarily disabled due to .NET 8 compatibility
+                            // Consider using a .NET 8 compatible PSD library in the future
+                            // For now, fallback to basic bitmap loading
+                            try
+                            {
+                                bitmap = new Bitmap(stream);
+                            }
+                            catch
+                            {
+                                // If PSD cannot be loaded, return null
+                                return null;
+                            }
                             break;
                         case ImageType.ICO:
                             using (var icon = new Icon(path))
@@ -83,10 +98,29 @@ namespace SETUNA.Main
                             }
                             break;
                         case ImageType.TGA:
-                            using (var reader = new BinaryReader(stream))
+                            try
                             {
-                                var image = new TgaLib.TgaImage(reader);
-                                bitmap = image.GetBitmap().ToBitmap();
+                                using (var image = SixLabors.ImageSharp.Image.Load<Rgba32>(stream))
+                                {
+                                    using (var ms = new MemoryStream())
+                                    {
+                                        image.SaveAsBmp(ms);
+                                        bitmap = new Bitmap(ms);
+                                    }
+                                }
+                            }
+                            catch
+                            {
+                                // If TGA cannot be loaded with ImageSharp, fallback to basic loading
+                                try
+                                {
+                                    stream.Seek(0, SeekOrigin.Begin);
+                                    bitmap = new Bitmap(stream);
+                                }
+                                catch
+                                {
+                                    return null;
+                                }
                             }
                             break;
                         default:
@@ -112,34 +146,44 @@ namespace SETUNA.Main
             return null;
         }
 
-        public static void DownloadImage(string url, Action<Bitmap> finished)
+        public static async void DownloadImage(string url, Action<Bitmap> finished)
         {
             var filePath = Path.Combine(Cache.CacheManager.Path, string.Format("TEMP_{0}_{1}.png", DateTime.Now.Ticks, Math.Abs(url.GetHashCode())));
-            var client = new WebClient();
-            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11;
-            client.DownloadFileCompleted += (s, e) =>
-            {
-                Bitmap bitmap = null;
+            Bitmap bitmap = null;
 
-                if (e.Error == null)
+            try
+            {
+                using (var client = new HttpClient())
                 {
-                    try
+                    client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.141 Safari/537.36");
+                    
+                    var response = await client.GetAsync(url);
+                    if (response.IsSuccessStatusCode)
                     {
+                        var imageBytes = await response.Content.ReadAsByteArrayAsync();
+                        await File.WriteAllBytesAsync(filePath, imageBytes);
+                        
                         bitmap = BitmapUtils.FromPath(filePath);
                     }
-                    catch { }
                 }
-
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Download failed: {ex.Message}");
+            }
+            finally
+            {
                 try
                 {
-                    File.Delete(filePath);
+                    if (File.Exists(filePath))
+                    {
+                        File.Delete(filePath);
+                    }
                 }
                 catch { }
 
                 finished?.Invoke(bitmap);
-            };
-            client.Headers[HttpRequestHeader.UserAgent] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.141 Safari/537.36";
-            client.DownloadFileAsync(new Uri(url), filePath);
+            }
         }
 
         public static Bitmap ToBitmap(this BitmapSource source)

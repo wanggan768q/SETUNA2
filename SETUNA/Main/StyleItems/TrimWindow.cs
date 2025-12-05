@@ -2,10 +2,12 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
+using System.Runtime.Versioning;
 
 namespace SETUNA.Main.StyleItems
 {
     // Token: 0x02000073 RID: 115
+    [SupportedOSPlatform("windows6.1")]
     internal sealed partial class TrimWindow : ScrapDrawForm
     {
         // Token: 0x060003BC RID: 956 RVA: 0x0001684C File Offset: 0x00014A4C
