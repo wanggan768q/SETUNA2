@@ -47,3 +47,6 @@ jobs:
       with:
         file: './TestResults/**/coverage.cobertura.xml'
         fail_ci_if_error: false
+        
+    - name: Publish main project
+      run: dotnet publish SETUNA/SETUNA.csproj --configuration Release --output ./publish --self-contained true --runtime win-x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
