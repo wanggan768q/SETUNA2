@@ -41,13 +41,23 @@ jobs:
       run: dotnet build SETUNA/SETUNA.csproj --configuration Release --no-restore
       
     - name: Publish single-file
-      run: dotnet publish SETUNA/SETUNA.csproj --configuration Release --no-build --output ./publish --self-contained true --runtime win-x64 --property:PublishSingleFile=true --property:IncludeNativeLibrariesForSelfExtract=true
+      run: dotnet publish SETUNA/SETUNA.csproj --configuration Release --no-build --output ./publish --self-contained true --runtime win-x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
       
     - name: Create ZIP package
       run: |
-        cd publish
-        7z a -tzip ../SETUNA-${{ steps.version.outputs.version }}-win-x64.zip *
-        cd ..
+        # 使用 PowerShell 创建 ZIP 包，更可靠
+        $publishPath = "publish"
+        $zipName = "SETUNA-${{ steps.version.outputs.version }}-win-x64.zip"
+        
+        if (Test-Path "$publishPath/SETUNA.exe") {
+          Write-Host "Found SETUNA.exe, creating prerelease package..."
+          Compress-Archive -Path "$publishPath/*" -DestinationPath $zipName -Force
+          Write-Host "ZIP package created: $zipName"
+        } else {
+          Write-Host "SETUNA.exe not found in publish directory"
+          Get-ChildItem $publishPath | Write-Host
+          exit 1
+        }
         
     - name: Create Prerelease
       uses: softprops/action-gh-release@v2
