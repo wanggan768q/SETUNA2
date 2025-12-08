@@ -41,7 +41,7 @@ jobs:
       run: dotnet build SETUNA/SETUNA.csproj --configuration Release --no-restore
       
     - name: Publish single-file
-      run: dotnet publish SETUNA/SETUNA.csproj --configuration Release --no-build --output ./publish --self-contained true --runtime win-x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+      run: dotnet publish SETUNA/SETUNA.csproj --configuration Release --no-build --output ./publish --self-contained true --runtime win-x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
       
     - name: Create ZIP package
       run: |
