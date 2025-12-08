@@ -50,6 +50,10 @@
     <PackageReference Include="Svg" Version="3.4.7" />
   </ItemGroup>
 
+  <PropertyGroup Condition="'$(Configuration)'=='Release'">
+    <CosturaDisabled>true</CosturaDisabled>
+  </PropertyGroup>
+
   <ItemGroup>
     <None Update="app.manifest">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
