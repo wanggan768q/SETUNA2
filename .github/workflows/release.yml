@@ -44,8 +44,11 @@ jobs:
     - name: Build test project
       run: dotnet build SETUNATests/SETUNATests.csproj --configuration Release --no-restore || echo "Test project build failed, continuing..."
       
-    - name: Publish single-file
-      run: dotnet publish SETUNA/SETUNA.csproj --configuration Release --output ./publish --self-contained true --runtime win-x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
+    - name: Publish single-file (Framework dependent)
+      run: dotnet publish SETUNA/SETUNA.csproj --configuration Release --output ./publish-framework --self-contained false --runtime win-x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:PublishTrimmed=true -p:TrimMode=link
+      
+    - name: Publish single-file (Self-contained)
+      run: dotnet publish SETUNA/SETUNA.csproj --configuration Release --output ./publish-self-contained --self-contained true --runtime win-x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:PublishTrimmed=true -p:TrimMode=link
       
     - name: Get version info
       id: version
@@ -61,19 +64,33 @@ jobs:
           echo "isRelease=false" >> $env:GITHUB_OUTPUT
         }
         
-    - name: Create ZIP package
+    - name: Create ZIP packages
       run: |
-        # 使用 PowerShell 创建 ZIP 包，更可靠
-        $publishPath = "publish"
-        $zipName = "SETUNA-${{ steps.version.outputs.version }}-win-x64.zip"
+        # 框架依赖版本（推荐，体积小）
+        $publishPathFramework = "publish-framework"
+        $zipNameFramework = "SETUNA-${{ steps.version.outputs.version }}-framework-win-x64.zip"
         
-        if (Test-Path "$publishPath/SETUNA.exe") {
-          Write-Host "Found SETUNA.exe, creating release package..."
-          Compress-Archive -Path "$publishPath/*" -DestinationPath $zipName -Force
-          Write-Host "ZIP package created: $zipName"
+        if (Test-Path "$publishPathFramework/SETUNA.exe") {
+          Write-Host "Found framework version SETUNA.exe, creating release package..."
+          Compress-Archive -Path "$publishPathFramework/*" -DestinationPath $zipNameFramework -Force
+          Write-Host "Framework ZIP package created: $zipNameFramework"
         } else {
-          Write-Host "SETUNA.exe not found in publish directory"
-          Get-ChildItem $publishPath | Write-Host
+          Write-Host "Framework SETUNA.exe not found in publish directory"
+          Get-ChildItem $publishPathFramework | Write-Host
+          exit 1
+        }
+        
+        # 自包含版本（体积大，无需安装.NET）
+        $publishPathSelfContained = "publish-self-contained"
+        $zipNameSelfContained = "SETUNA-${{ steps.version.outputs.version }}-selfcontained-win-x64.zip"
+        
+        if (Test-Path "$publishPathSelfContained/SETUNA.exe") {
+          Write-Host "Found self-contained version SETUNA.exe, creating release package..."
+          Compress-Archive -Path "$publishPathSelfContained/*" -DestinationPath $zipNameSelfContained -Force
+          Write-Host "Self-contained ZIP package created: $zipNameSelfContained"
+        } else {
+          Write-Host "Self-contained SETUNA.exe not found in publish directory"
+          Get-ChildItem $publishPathSelfContained | Write-Host
           exit 1
         }
       
@@ -87,16 +104,26 @@ jobs:
           ## 🚀 SETUNA ${{ steps.version.outputs.version }} 发布
           
           ### 📦 下载
-          - `SETUNA-${{ steps.version.outputs.version }}-win-x64.zip`: 完整独立可执行程序包
+          - `SETUNA-${{ steps.version.outputs.version }}-framework-win-x64.zip`: 框架依赖版本（推荐，约5-10MB）
+          - `SETUNA-${{ steps.version.outputs.version }}-selfcontained-win-x64.zip`: 自包含版本（约70MB，无需安装.NET）
           
           ### ⚙️ 安装说明
-          1. 下载对应版本的ZIP文件
+          
+          **框架依赖版本（推荐）：**
+          1. 下载并安装 [.NET 9.0 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/9.0)
+          2. 下载 `SETUNA-*-framework-win-x64.zip`
+          3. 解压缩到任意目录
+          4. 运行 `SETUNA.exe` 即可使用
+          
+          **自包含版本：**
+          1. 下载 `SETUNA-*-selfcontained-win-x64.zip`
           2. 解压缩到任意目录
-          3. 运行 `SETUNA.exe` 即可使用
+          3. 运行 `SETUNA.exe` 即可使用（无需安装.NET运行时）
           
           ### 🔧 系统要求
           - Windows 10 14393 及以上
-          - .NET 9.0 Runtime（已内置于独立包中）
+          - .NET 9.0 Desktop Runtime（框架依赖版本需要）
+          - 自包含版本无需额外安装运行时
           
           ### ✨ 主要特性
           - 支持高分屏截图
@@ -107,13 +134,16 @@ jobs:
           ---
           📌 详细说明请查看 [README.md](https://github.com/tylearymf/SETUNA2/blob/main/README.md)
         files: |
-          SETUNA-${{ steps.version.outputs.version }}-win-x64.zip
+          SETUNA-${{ steps.version.outputs.version }}-framework-win-x64.zip
+          SETUNA-${{ steps.version.outputs.version }}-selfcontained-win-x64.zip
         draft: false
         prerelease: false
         
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: SETUNA-${{ steps.version.outputs.version }}-win-x64
-        path: SETUNA-${{ steps.version.outputs.version }}-win-x64.zip
+        name: SETUNA-${{ steps.version.outputs.version }}-packages
+        path: |
+          SETUNA-${{ steps.version.outputs.version }}-framework-win-x64.zip
+          SETUNA-${{ steps.version.outputs.version }}-selfcontained-win-x64.zip
         retention-days: 30
