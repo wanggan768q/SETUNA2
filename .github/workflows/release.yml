@@ -10,6 +10,12 @@ on:
         description: '手动执行原因'
         required: false
         default: '测试构建'
+  schedule:
+    # 每周一上午 9:00 UTC 自动执行一次 (北京时间周一17:00)
+    - cron: '0 9 * * 1'
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -41,6 +47,20 @@ jobs:
     - name: Publish single-file
       run: dotnet publish SETUNA/SETUNA.csproj --configuration Release --output ./publish --self-contained true --runtime win-x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
       
+    - name: Get version info
+      id: version
+      run: |
+        if ("${{ github.ref }}" -like "refs/tags/*") {
+          $version = "${{ github.ref }}" -replace "refs/tags/", ""
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+          echo "isRelease=true" >> $env:GITHUB_OUTPUT
+        } else {
+          $date = Get-Date -Format "yyyyMMdd-HHmm"
+          $version = "nightly-$date"
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+          echo "isRelease=false" >> $env:GITHUB_OUTPUT
+        }
+        
     - name: Create ZIP package
       run: |
         # 使用 PowerShell 创建 ZIP 包，更可靠
@@ -55,20 +75,6 @@ jobs:
           Write-Host "SETUNA.exe not found in publish directory"
           Get-ChildItem $publishPath | Write-Host
           exit 1
-        }
-        
-    - name: Get version info
-      id: version
-      run: |
-        if ("${{ github.ref }}" -like "refs/tags/*") {
-          $version = "${{ github.ref }}" -replace "refs/tags/", ""
-          echo "version=$version" >> $env:GITHUB_OUTPUT
-          echo "isRelease=true" >> $env:GITHUB_OUTPUT
-        } else {
-          $date = Get-Date -Format "yyyyMMdd-HHmm"
-          $version = "nightly-$date"
-          echo "version=$version" >> $env:GITHUB_OUTPUT
-          echo "isRelease=false" >> $env:GITHUB_OUTPUT
         }
       
     - name: Create Release
