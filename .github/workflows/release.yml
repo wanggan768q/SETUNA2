@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      reason:
+        description: '手动执行原因'
+        required: false
+        default: '测试构建'
 
 jobs:
   build:
