@@ -30,14 +30,20 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore SETUNA/SETUNA.csproj
       
-    - name: Build
+    - name: Restore test dependencies
+      run: dotnet restore SETUNATests/SETUNATests.csproj
+      
+    - name: Build main project
       run: dotnet build SETUNA/SETUNA.csproj --configuration Release --no-restore
       
+    - name: Build test project
+      run: dotnet build SETUNATests/SETUNATests.csproj --configuration Release --no-restore
+      
     - name: Run Tests
-      run: dotnet test SETUNATests/SETUNATests.csproj --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"
+      run: dotnet test SETUNATests/SETUNATests.csproj --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage" --logger "console;verbosity=detailed" --results-directory ./TestResults
       
     - name: Upload coverage reports
       uses: codecov/codecov-action@v4
       with:
-        file: '**/coverage.cobertura.xml'
+        file: './TestResults/**/coverage.cobertura.xml'
         fail_ci_if_error: false
