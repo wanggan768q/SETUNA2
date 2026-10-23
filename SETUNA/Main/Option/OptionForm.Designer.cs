@@ -123,6 +123,12 @@
             this.label19 = new System.Windows.Forms.Label();
             this.groupBox15 = new System.Windows.Forms.GroupBox();
             this.checkBox_transparent = new System.Windows.Forms.CheckBox();
+            this.groupBox17 = new System.Windows.Forms.GroupBox();
+            this.checkBox_clotheslineEnabled = new System.Windows.Forms.CheckBox();
+            this.radioButton1_clotheslinePreview = new System.Windows.Forms.RadioButton();
+            this.radioButton2_clotheslinePreview = new System.Windows.Forms.RadioButton();
+            this.radioButton3_clotheslinePreview = new System.Windows.Forms.RadioButton();
+            this.label20 = new System.Windows.Forms.Label();
             this.panel1 = new System.Windows.Forms.Panel();
             this.lblMenuMisc = new System.Windows.Forms.Label();
             this.lblMenuStyle = new System.Windows.Forms.Label();
@@ -168,6 +174,7 @@
             this.groupBox16.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox_fullscreenCursor)).BeginInit();
             this.groupBox15.SuspendLayout();
+            this.groupBox17.SuspendLayout();
             this.panel1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).BeginInit();
             this.SuspendLayout();
@@ -1326,6 +1333,7 @@
             this.pageMisc.Controls.Add(this.groupBox14);
             this.pageMisc.Controls.Add(this.groupBox16);
             this.pageMisc.Controls.Add(this.groupBox15);
+            this.pageMisc.Controls.Add(this.groupBox17);
             this.pageMisc.Location = new System.Drawing.Point(4, 43);
             this.pageMisc.Margin = new System.Windows.Forms.Padding(6);
             this.pageMisc.Name = "pageMisc";
@@ -1483,6 +1491,82 @@
             this.checkBox_transparent.Text = "鼠标是否可穿透截图透明部分";
             this.checkBox_transparent.UseVisualStyleBackColor = true;
             // 
+            // groupBox17
+            //
+            this.groupBox17.Controls.Add(this.checkBox_clotheslineEnabled);
+            this.groupBox17.Controls.Add(this.label20);
+            this.groupBox17.Controls.Add(this.radioButton1_clotheslinePreview);
+            this.groupBox17.Controls.Add(this.radioButton2_clotheslinePreview);
+            this.groupBox17.Controls.Add(this.radioButton3_clotheslinePreview);
+            this.groupBox17.Location = new System.Drawing.Point(13, 462);
+            this.groupBox17.Margin = new System.Windows.Forms.Padding(8, 6, 8, 6);
+            this.groupBox17.Name = "groupBox17";
+            this.groupBox17.Padding = new System.Windows.Forms.Padding(8, 6, 8, 6);
+            this.groupBox17.Size = new System.Drawing.Size(1076, 158);
+            this.groupBox17.TabIndex = 15;
+            this.groupBox17.TabStop = false;
+            this.groupBox17.Text = "照片晾绳";
+            //
+            // checkBox_clotheslineEnabled
+            //
+            this.checkBox_clotheslineEnabled.AutoSize = true;
+            this.checkBox_clotheslineEnabled.Location = new System.Drawing.Point(79, 42);
+            this.checkBox_clotheslineEnabled.Margin = new System.Windows.Forms.Padding(8, 6, 8, 6);
+            this.checkBox_clotheslineEnabled.Name = "checkBox_clotheslineEnabled";
+            this.checkBox_clotheslineEnabled.Size = new System.Drawing.Size(441, 34);
+            this.checkBox_clotheslineEnabled.TabIndex = 0;
+            this.checkBox_clotheslineEnabled.Text = "启用照片晾绳";
+            this.toolTip1.SetToolTip(this.checkBox_clotheslineEnabled, "将散落的截图收拢为一根可拖动绳子上的缩略图");
+            this.checkBox_clotheslineEnabled.UseVisualStyleBackColor = true;
+            //
+            // label20
+            //
+            this.label20.AutoSize = true;
+            this.label20.Location = new System.Drawing.Point(79, 96);
+            this.label20.Margin = new System.Windows.Forms.Padding(8, 0, 8, 0);
+            this.label20.Name = "label20";
+            this.label20.Size = new System.Drawing.Size(223, 30);
+            this.label20.TabIndex = 1;
+            this.label20.Text = "预览位置∶";
+            //
+            // radioButton1_clotheslinePreview
+            //
+            this.radioButton1_clotheslinePreview.AutoSize = true;
+            this.radioButton1_clotheslinePreview.Checked = true;
+            this.radioButton1_clotheslinePreview.Location = new System.Drawing.Point(328, 92);
+            this.radioButton1_clotheslinePreview.Margin = new System.Windows.Forms.Padding(8, 6, 8, 6);
+            this.radioButton1_clotheslinePreview.Name = "radioButton1_clotheslinePreview";
+            this.radioButton1_clotheslinePreview.Size = new System.Drawing.Size(290, 34);
+            this.radioButton1_clotheslinePreview.TabIndex = 2;
+            this.radioButton1_clotheslinePreview.TabStop = true;
+            this.radioButton1_clotheslinePreview.Text = "所在显示器居中";
+            this.toolTip1.SetToolTip(this.radioButton1_clotheslinePreview, "预览显示在截图所在显示器的居中位置");
+            this.radioButton1_clotheslinePreview.UseVisualStyleBackColor = true;
+            //
+            // radioButton2_clotheslinePreview
+            //
+            this.radioButton2_clotheslinePreview.AutoSize = true;
+            this.radioButton2_clotheslinePreview.Location = new System.Drawing.Point(650, 92);
+            this.radioButton2_clotheslinePreview.Margin = new System.Windows.Forms.Padding(8, 6, 8, 6);
+            this.radioButton2_clotheslinePreview.Name = "radioButton2_clotheslinePreview";
+            this.radioButton2_clotheslinePreview.Size = new System.Drawing.Size(290, 34);
+            this.radioButton2_clotheslinePreview.TabIndex = 3;
+            this.radioButton2_clotheslinePreview.Text = "缩略图附近";
+            this.toolTip1.SetToolTip(this.radioButton2_clotheslinePreview, "预览显示在缩略图附近");
+            this.radioButton2_clotheslinePreview.UseVisualStyleBackColor = true;
+            //
+            // radioButton3_clotheslinePreview
+            //
+            this.radioButton3_clotheslinePreview.AutoSize = true;
+            this.radioButton3_clotheslinePreview.Location = new System.Drawing.Point(972, 92);
+            this.radioButton3_clotheslinePreview.Margin = new System.Windows.Forms.Padding(8, 6, 8, 6);
+            this.radioButton3_clotheslinePreview.Name = "radioButton3_clotheslinePreview";
+            this.radioButton3_clotheslinePreview.Size = new System.Drawing.Size(290, 34);
+            this.radioButton3_clotheslinePreview.TabIndex = 4;
+            this.radioButton3_clotheslinePreview.Text = "截图原位置";
+            this.toolTip1.SetToolTip(this.radioButton3_clotheslinePreview, "预览显示在截图原位置");
+            this.radioButton3_clotheslinePreview.UseVisualStyleBackColor = true;
+            //
             // panel1
             // 
             this.panel1.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(81)))), ((int)(((byte)(163)))), ((int)(((byte)(236)))));
@@ -1675,6 +1759,8 @@
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox_fullscreenCursor)).EndInit();
             this.groupBox15.ResumeLayout(false);
             this.groupBox15.PerformLayout();
+            this.groupBox17.ResumeLayout(false);
+            this.groupBox17.PerformLayout();
             this.panel1.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).EndInit();
             this.ResumeLayout(false);
@@ -1980,5 +2066,11 @@
         private System.Windows.Forms.GroupBox groupBox14;
         private System.Windows.Forms.CheckBox checkBox_cursor;
         private System.Windows.Forms.CheckBox checkBox_magnifier;
+        private System.Windows.Forms.GroupBox groupBox17;
+        private System.Windows.Forms.CheckBox checkBox_clotheslineEnabled;
+        private System.Windows.Forms.RadioButton radioButton1_clotheslinePreview;
+        private System.Windows.Forms.RadioButton radioButton2_clotheslinePreview;
+        private System.Windows.Forms.RadioButton radioButton3_clotheslinePreview;
+        private System.Windows.Forms.Label label20;
     }
 }

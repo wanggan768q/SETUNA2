@@ -758,7 +758,11 @@ namespace SETUNA.Main.Option
                 hkScrap = hkScrap,
                 blHotKey = blHotKey,
                 Setuna = Setuna,
-                Scrap = Scrap
+                Scrap = Scrap,
+                ClotheslineEnabled = ClotheslineEnabled,
+                ClotheslinePreviewLocation = ClotheslinePreviewLocation,
+                ClotheslineRopePosition = ClotheslineRopePosition,
+                ClotheslineRopePositionSaved = ClotheslineRopePositionSaved
             };
             for (var i = 0; i < Styles.Count; i++)
             {
@@ -802,6 +806,18 @@ namespace SETUNA.Main.Option
 
         // Token: 0x04000100 RID: 256
         public List<CStyle> Styles;
+
+        // 晾绳模式
+        public bool ClotheslineEnabled;
+
+        // 晾绳预览位置
+        public ClotheslinePreviewLocation ClotheslinePreviewLocation;
+
+        // 晾绳绳子位置
+        public Point ClotheslineRopePosition;
+
+        // 绳子位置是否已保存过
+        public bool ClotheslineRopePositionSaved;
 
         // Token: 0x0200003D RID: 61
         public class ScrapOptionData
@@ -1153,5 +1169,16 @@ namespace SETUNA.Main.Option
                 Capture
             }
         }
+    }
+
+    // 晾绳模式预览位置
+    public enum ClotheslinePreviewLocation
+    {
+        // 所在显示器居中
+        MonitorCenter,
+        // 缩略图附近
+        NearThumbnail,
+        // 截图原位置
+        OriginalLocation
     }
 }

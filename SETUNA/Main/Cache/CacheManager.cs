@@ -6,7 +6,8 @@ namespace SETUNA.Main.Cache
 {
     public class CacheManager : IScrapAddedListener, IScrapRemovedListener, IScrapLocationChangedListener, IScrapImageChangedListener, IScrapStyleAppliedListener, IScrapStyleRemovedListener
     {
-        public static readonly string Path = System.IO.Path.Combine(System.Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SETUNA");
+        // 缓存根目录（测试可重设指向临时目录）
+        public static string Path = System.IO.Path.Combine(System.Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SETUNA");
 
         public static readonly CacheManager Instance = new CacheManager();
 

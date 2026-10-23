@@ -20,6 +20,8 @@ namespace SETUNA.Main.Cache
         public Style Style { set; get; }
         // 排序值
         public int SortingOrder { set; get; }
+        // 是否晾在晾绳上（null 表示旧缓存/未迁移）
+        public bool? ClotheslineHanging { set; get; }
 
 
         public string FolderPath => Path.Combine(CacheManager.Path, CreateTime.ToCustomString());
@@ -126,6 +128,7 @@ namespace SETUNA.Main.Cache
                 Position = Position,
                 Style = Style,
                 SortingOrder = SortingOrder,
+                ClotheslineHanging = ClotheslineHanging,
             };
             var json = JsonConvert.SerializeObject(item, Formatting.Indented);
             File.WriteAllText(fullPath, json);

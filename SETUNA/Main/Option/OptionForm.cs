@@ -81,6 +81,11 @@ namespace SETUNA.Main.Option
             pictureBox_fullscreenCursor.BackColor = _so.Setuna.FullscreenCursorLineColor;
 
             checkBox_transparent.Checked = _so.Setuna.BackgroundTransparentEnabled;
+
+            checkBox_clotheslineEnabled.Checked = _so.ClotheslineEnabled;
+            radioButton1_clotheslinePreview.Checked = _so.ClotheslinePreviewLocation == ClotheslinePreviewLocation.MonitorCenter;
+            radioButton2_clotheslinePreview.Checked = _so.ClotheslinePreviewLocation == ClotheslinePreviewLocation.NearThumbnail;
+            radioButton3_clotheslinePreview.Checked = _so.ClotheslinePreviewLocation == ClotheslinePreviewLocation.OriginalLocation;
         }
 
         // Token: 0x060002D5 RID: 725 RVA: 0x00013908 File Offset: 0x00011B08
@@ -157,6 +162,20 @@ namespace SETUNA.Main.Option
             _so.Setuna.FullscreenCursorColorB = pictureBox_fullscreenCursor.BackColor.B;
 
             _so.Setuna.BackgroundTransparentEnabled = checkBox_transparent.Checked;
+
+            _so.ClotheslineEnabled = checkBox_clotheslineEnabled.Checked;
+            if (radioButton1_clotheslinePreview.Checked)
+            {
+                _so.ClotheslinePreviewLocation = ClotheslinePreviewLocation.MonitorCenter;
+            }
+            else if (radioButton2_clotheslinePreview.Checked)
+            {
+                _so.ClotheslinePreviewLocation = ClotheslinePreviewLocation.NearThumbnail;
+            }
+            else
+            {
+                _so.ClotheslinePreviewLocation = ClotheslinePreviewLocation.OriginalLocation;
+            }
 
             foreach (var item in Mainform.Instance.scrapBook)
             {
