@@ -453,12 +453,15 @@ namespace SETUNA
             if (clotheslineHook.IsConsumingRound)
             {
                 // 消费中的轮次：状态机在 keyup 时自动复位（ClotheslineSpaceKeyStateMachine.OnKeyUp），
-                // 排队一个 UI 轮询等待轮次结束后确定性卸钩
+                // 排队一个 UI 轮询等待轮次结束后确定性卸钩。
+                // 代际标记：期间若重新 Enable 装了新钩，旧钩的等待 tick 不得误卸新钩
                 var hook = clotheslineHook;
+                var generation = ++clotheslineHookGeneration;
                 var waitTimer = new System.Windows.Forms.Timer { Interval = 50 };
                 waitTimer.Tick += (s, args) =>
                 {
-                    if (!hook.IsConsumingRound || hook != clotheslineHook)
+                    var currentGeneration = hook == clotheslineHook ? clotheslineHookGeneration : -1;
+                    if (!hook.IsConsumingRound || currentGeneration != generation)
                     {
                         waitTimer.Stop();
                         waitTimer.Dispose();
@@ -1406,5 +1409,6 @@ namespace SETUNA
         private ClotheslineSpaceKeyHook clotheslineHook;
         private ToolStripMenuItem miClotheslineHang;
         private bool clotheslineModeActive;
+        private int clotheslineHookGeneration;
     }
 }
