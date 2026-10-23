@@ -891,6 +891,239 @@ namespace SETUNATests
         }
     }
 
+    [TestClass]
+    [SupportedOSPlatform("windows")]
+    public class ClotheslineSpaceKeyStateMachineTests
+    {
+        // —— 简报 9.1：down→up（消费） ——
+
+        [TestMethod]
+        public void DownHit_Toggles_ConsumeUp_RoundEnds()
+        {
+            var sm = new ClotheslineSpaceKeyStateMachine();
+
+            Assert.AreEqual(SpaceKeyAction.TogglePreview, sm.OnKeyDown(true));
+            Assert.AreEqual(SpaceKeyAction.Consume, sm.OnKeyUp());
+            // 轮次结束，可开始新轮
+            Assert.AreEqual(SpaceKeyAction.TogglePreview, sm.OnKeyDown(true));
+        }
+
+        [TestMethod]
+        public void DownHit_RepeatKeydown_DoesNotToggleAgain_UpConsumed()
+        {
+            var sm = new ClotheslineSpaceKeyStateMachine();
+
+            Assert.AreEqual(SpaceKeyAction.TogglePreview, sm.OnKeyDown(true));
+            // 按住产生的 repeat（低级钩子同为 keydown 消息）：跟随首轮，不重复切换
+            Assert.AreEqual(SpaceKeyAction.Consume, sm.OnKeyDown(true));
+            Assert.AreEqual(SpaceKeyAction.Consume, sm.OnKeyDown(true));
+            Assert.AreEqual(SpaceKeyAction.Consume, sm.OnKeyUp());
+        }
+
+        // —— 非命中 down 透传后按住移入：本轮不接管 ——
+
+        [TestMethod]
+        public void DownMiss_PassThrough_MoveOverThumbnailDuringHold_DoesNotTakeOver()
+        {
+            var sm = new ClotheslineSpaceKeyStateMachine();
+
+            Assert.AreEqual(SpaceKeyAction.PassThrough, sm.OnKeyDown(false));
+            // 按住期间鼠标移入缩略图：repeat 仍透传（本轮命中判定已定）
+            Assert.AreEqual(SpaceKeyAction.PassThrough, sm.OnKeyDown(true));
+            Assert.AreEqual(SpaceKeyAction.PassThrough, sm.OnKeyUp());
+        }
+
+        // —— 无 down 的 keyup（钩子安装时已按住等） ——
+
+        [TestMethod]
+        public void KeyUpWithoutDown_PassThrough_WaitsForNextDown()
+        {
+            var sm = new ClotheslineSpaceKeyStateMachine();
+
+            Assert.AreEqual(SpaceKeyAction.PassThrough, sm.OnKeyUp());
+            // 之后首个 down 正常开始新一轮
+            Assert.AreEqual(SpaceKeyAction.TogglePreview, sm.OnKeyDown(true));
+        }
+
+        [TestMethod]
+        public void MarkAlreadyDown_WholeRoundPassesThrough_UntilKeyUp()
+        {
+            var sm = new ClotheslineSpaceKeyStateMachine();
+            sm.MarkAlreadyDown();
+
+            // 安装时已按住：本轮 repeat/keyup 全部透传
+            Assert.AreEqual(SpaceKeyAction.PassThrough, sm.OnKeyDown(true));
+            Assert.AreEqual(SpaceKeyAction.PassThrough, sm.OnKeyUp());
+            // 该轮 keyup 结束后恢复正常
+            Assert.AreEqual(SpaceKeyAction.TogglePreview, sm.OnKeyDown(true));
+        }
+
+        // —— ConsumingRound 配对（延迟卸钩判定） ——
+
+        [TestMethod]
+        public void ConsumingRound_TrueOnlyWhileConsumedDownPending()
+        {
+            var sm = new ClotheslineSpaceKeyStateMachine();
+            Assert.IsFalse(sm.ConsumingRound);
+
+            sm.OnKeyDown(true);
+            Assert.IsTrue(sm.ConsumingRound);
+
+            sm.OnKeyUp();
+            Assert.IsFalse(sm.ConsumingRound);
+
+            sm.OnKeyDown(false);
+            Assert.IsFalse(sm.ConsumingRound);
+        }
+
+        [TestMethod]
+        public void Reset_ClearsPendingRound()
+        {
+            var sm = new ClotheslineSpaceKeyStateMachine();
+            sm.OnKeyDown(true);
+            sm.Reset();
+
+            Assert.IsFalse(sm.ConsumingRound);
+            Assert.AreEqual(SpaceKeyAction.TogglePreview, sm.OnKeyDown(true));
+        }
+    }
+
+    [TestClass]
+    [SupportedOSPlatform("windows")]
+    public class ClotheslinePauseStateTests
+    {
+        // —— 简报 9.2：全部隐藏与捕获暂停互不清除 ——
+
+        [TestMethod]
+        public void SinglePause_EnteredExit_ShouldHideTracksCorrectly()
+        {
+            var state = new ClotheslinePauseState();
+            Assert.IsFalse(state.ShouldHide);
+
+            state.SetAllHidden(true);
+            Assert.IsTrue(state.ShouldHide);
+
+            state.SetAllHidden(false);
+            Assert.IsFalse(state.ShouldHide);
+        }
+
+        [TestMethod]
+        public void CapturePauseExit_DoesNotClearAllHidden()
+        {
+            var state = new ClotheslinePauseState();
+            state.SetAllHidden(true);
+            state.SetCapturePaused(true);
+
+            // 捕获结束只清除捕获暂停，全部隐藏仍生效
+            state.SetCapturePaused(false);
+            Assert.IsTrue(state.ShouldHide);
+            Assert.IsTrue(state.AllHidden);
+            Assert.IsFalse(state.CapturePaused);
+        }
+
+        [TestMethod]
+        public void AllHiddenExit_DoesNotClearCapturePaused()
+        {
+            var state = new ClotheslinePauseState();
+            state.SetAllHidden(true);
+            state.SetCapturePaused(true);
+
+            state.SetAllHidden(false);
+            Assert.IsTrue(state.ShouldHide);
+            Assert.IsFalse(state.AllHidden);
+            Assert.IsTrue(state.CapturePaused);
+        }
+
+        [TestMethod]
+        public void BothPaused_ExitOneAtATime_ShowOnlyAfterBothReleased()
+        {
+            var state = new ClotheslinePauseState();
+            state.SetAllHidden(true);
+            state.SetCapturePaused(true);
+
+            state.SetCapturePaused(false);
+            Assert.IsTrue(state.ShouldHide);
+
+            state.SetAllHidden(false);
+            Assert.IsFalse(state.ShouldHide);
+        }
+
+        [TestMethod]
+        public void RepeatedSetSameValue_Idempotent()
+        {
+            var state = new ClotheslinePauseState();
+            state.SetAllHidden(true);
+            state.SetAllHidden(true);
+            state.SetCapturePaused(true);
+            state.SetCapturePaused(true);
+
+            Assert.IsTrue(state.ShouldHide);
+
+            state.SetCapturePaused(false);
+            state.SetCapturePaused(false);
+            Assert.IsTrue(state.ShouldHide);
+        }
+    }
+
+    [TestClass]
+    [SupportedOSPlatform("windows")]
+    public class ClotheslineModeActionTests
+    {
+        // —— 简报 9.3：重复应用设置幂等（OptionApply 决策层） ——
+
+        [TestMethod]
+        public void DecideModeAction_SameState_NoAction()
+        {
+            Assert.AreEqual(ClotheslineModeAction.None, ClotheslineController.DecideModeAction(true, true));
+            Assert.AreEqual(ClotheslineModeAction.None, ClotheslineController.DecideModeAction(false, false));
+        }
+
+        [TestMethod]
+        public void DecideModeAction_StateChanged_EnableOrDisable()
+        {
+            Assert.AreEqual(ClotheslineModeAction.Enable, ClotheslineController.DecideModeAction(true, false));
+            Assert.AreEqual(ClotheslineModeAction.Disable, ClotheslineController.DecideModeAction(false, true));
+        }
+
+        [TestMethod]
+        public void DecideModeAction_RepeatedApplySequence_StaysNone()
+        {
+            // 模拟 OptionApply 幂等路径：开→开→开，仅第一次产生 Enable
+            var actions = new List<ClotheslineModeAction>();
+            var modeActive = false;
+            foreach (var enabled in new[] { true, true, true })
+            {
+                var action = ClotheslineController.DecideModeAction(enabled, modeActive);
+                actions.Add(action);
+                if (action == ClotheslineModeAction.Enable)
+                {
+                    modeActive = true;
+                }
+            }
+
+            CollectionAssert.AreEqual(
+                new List<ClotheslineModeAction> { ClotheslineModeAction.Enable, ClotheslineModeAction.None, ClotheslineModeAction.None },
+                actions);
+        }
+
+        [TestMethod]
+        public void DecideModeAction_ToggleOnOffOn_EachTransitionActioned()
+        {
+            var modeActive = false;
+            var actions = new List<ClotheslineModeAction>();
+            foreach (var enabled in new[] { true, false, true })
+            {
+                var action = ClotheslineController.DecideModeAction(enabled, modeActive);
+                actions.Add(action);
+                modeActive = action != ClotheslineModeAction.None ? enabled : modeActive;
+            }
+
+            CollectionAssert.AreEqual(
+                new List<ClotheslineModeAction> { ClotheslineModeAction.Enable, ClotheslineModeAction.Disable, ClotheslineModeAction.Enable },
+                actions);
+        }
+    }
+
     /// 暴露 CacheItem protected 构造函数用于测试
     public class CacheItemAccessForTest : CacheItem
     {

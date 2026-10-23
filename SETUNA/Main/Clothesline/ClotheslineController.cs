@@ -8,6 +8,13 @@ using SETUNA.Main.Option;
 
 namespace SETUNA.Main.Clothesline
 {
+    /// <summary>晾绳模式迁移动作（宿主 OptionApply 按此更新模型与钩子）。</summary>
+    public enum ClotheslineModeAction
+    {
+        None,
+        Enable,
+        Disable
+    }
     /// <summary>
     /// 晾绳模式控制器：挂起集合、绳子/预览窗体生命周期与自动关闭计时。
     /// 纯 UI 线程组件；不读写 SetunaOption 持久化（初始位置注入，位置变更回传宿主）。
@@ -29,6 +36,7 @@ namespace SETUNA.Main.Clothesline
         private Image _previewImage;
         private ClotheslinePreviewLocation _previewMode = ClotheslinePreviewLocation.MonitorCenter;
         private bool _visible;
+        private readonly ClotheslinePauseState _pause = new ClotheslinePauseState();
         private bool _disposed;
 
         /// <summary>双击缩略图（供任务 4 接双击取下）。</summary>
@@ -52,6 +60,12 @@ namespace SETUNA.Main.Clothesline
             get => _previewMode;
             set => _previewMode = value;
         }
+
+        /// <summary>预览是否正在显示（钩子命中判定：预览打开时空格始终消费）。</summary>
+        public bool IsPreviewOpen => _previewForm != null && _previewForm.Visible;
+
+        /// <summary>绳子当前屏幕位置（宿主读取用于持久化判断）。</summary>
+        public Point RopeLocation => _ropeForm != null ? _ropeForm.RopeLocation : Point.Empty;
 
         // —— 挂起集合 ——
 
@@ -114,6 +128,11 @@ namespace SETUNA.Main.Clothesline
         public void Show()
         {
             _visible = true;
+            if (_pause.ShouldHide)
+            {
+                // 全部隐藏或捕获暂停生效中：保持隐藏，退出暂停由 UpdatePauseVisibility 恢复
+                return;
+            }
             EnsureRopeForm().Show();
             UpdateRopeItems();
         }
@@ -124,6 +143,62 @@ namespace SETUNA.Main.Clothesline
             ClosePreview();
             StopAutoCloseTimer();
             _ropeForm?.Hide();
+        }
+
+        /// <summary>全部隐藏（置顶热键套件）：绳子+预览一起隐藏；与捕获暂停分别记录互不清除。</summary>
+        public void SetAllHidden(bool hidden)
+        {
+            _pause.SetAllHidden(hidden);
+            UpdatePauseVisibility();
+        }
+
+        /// <summary>捕获暂停：截图取样前调用，避免绳子/预览进入画面；EndCapture 恢复。</summary>
+        public void SetCapturePaused(bool paused)
+        {
+            _pause.SetCapturePaused(paused);
+            UpdatePauseVisibility();
+        }
+
+        private void UpdatePauseVisibility()
+        {
+            if (_pause.ShouldHide)
+            {
+                ClosePreview();
+                StopAutoCloseTimer();
+                _ropeForm?.Hide();
+            }
+            else if (_visible)
+            {
+                EnsureRopeForm().Show();
+                UpdateRopeItems();
+            }
+        }
+
+        /// <summary>滚动绳子使指定截图的缩略图进入可视区（截图列表激活挂起项时定位）。</summary>
+        public void ScrollToScrap(ScrapBase scrap)
+        {
+            if (_ropeForm == null || !_ropeForm.Visible || scrap == null)
+            {
+                return;
+            }
+            var index = _items.FindIndex(x => ReferenceEquals(x.Scrap, scrap));
+            if (index >= 0)
+            {
+                _ropeForm.ScrollToIndex(index);
+            }
+        }
+
+        /// <summary>按绳子→预览顺序把可见窗体置顶（LayerManager 刷新末尾经静态回调调用）。</summary>
+        public void BringRopeWindowsToFront()
+        {
+            if (_ropeForm != null && _ropeForm.Visible)
+            {
+                _ropeForm.TopMost = true;
+            }
+            if (_previewForm != null && _previewForm.Visible)
+            {
+                _previewForm.TopMost = true;
+            }
         }
 
         /// <summary>命中检测：屏幕坐标 → 命中的缩略图对应 ScrapBase（照片矩形范围内才算）。</summary>
@@ -141,13 +216,17 @@ namespace SETUNA.Main.Clothesline
             _ropeForm?.ScrollToLatest();
         }
 
+        /// <summary>挂起集合是否为空（宿主判断模式是否可用）。</summary>
+        public bool HasItems => _items.Count > 0;
+
         // —— 预览管理 ——
 
         /// <summary>打开预览；重复 Open 同一源不重建。排队请求以最后一次为准。</summary>
         public void OpenPreview(ScrapBase source)
         {
-            if (source == null || !_visible)
+            if (source == null || !_visible || _pause.ShouldHide)
             {
+                // 关闭模式/全部隐藏/捕获暂停后到达的排队 Show 请求不得重新打开预览
                 return;
             }
 
@@ -371,6 +450,19 @@ namespace SETUNA.Main.Clothesline
         public static bool IsPointerOverPreviewSurface(Point mousePoint, Rectangle sourceRect, Rectangle previewRect)
         {
             return (!sourceRect.IsEmpty && sourceRect.Contains(mousePoint)) || (!previewRect.IsEmpty && previewRect.Contains(mousePoint));
+        }
+
+        /// <summary>
+        /// 模式应用决策（纯函数，供测试）：目标开关与当前激活态相同 → 不动（幂等）；
+        /// 不同 → 开启/关闭动作。钩子安装失败时的回滚由宿主处理。
+        /// </summary>
+        public static ClotheslineModeAction DecideModeAction(bool optionEnabled, bool modeActive)
+        {
+            if (optionEnabled == modeActive)
+            {
+                return ClotheslineModeAction.None;
+            }
+            return optionEnabled ? ClotheslineModeAction.Enable : ClotheslineModeAction.Disable;
         }
 
         private void StopAutoCloseTimer()
