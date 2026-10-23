@@ -42,9 +42,6 @@ namespace SETUNA.Main.Clothesline
         /// <summary>双击缩略图（供任务 4 接双击取下）。</summary>
         public event Action<ScrapBase> ThumbnailDoubleClicked;
 
-        /// <summary>绳子拖动结束，新位置回传宿主持久化。</summary>
-        public event Action<Point> RopeDragged;
-
         /// <summary>预览显示/关闭变化。</summary>
         public event Action<bool> PreviewVisibilityChanged;
 
@@ -319,7 +316,7 @@ namespace SETUNA.Main.Clothesline
         {
             if (_ropeForm != null)
             {
-                RopeDragged?.Invoke(_ropeForm.RopeLocation);
+                _ropePositionChanged?.Invoke(_ropeForm.RopeLocation);
             }
         }
 
