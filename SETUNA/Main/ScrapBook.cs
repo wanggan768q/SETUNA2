@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
+using SETUNA.Main.Clothesline;
 
 namespace SETUNA.Main
 {
@@ -145,6 +146,17 @@ namespace SETUNA.Main
             };
             scrapBase.SetBounds(pos.X, pos.Y, image.Width, image.Height, BoundsSpecified.All);
 
+            // 在恢复样式之前确���挂起状态：样式异步创建完成后 AddScrapThenDo 的 Show 会被挂起抑制拦截。
+            // 仅模式开启时迁移/挂起，模式关闭维持原展示行为
+            if (ClotheslineCacheMigration.ResolveHanging(cacheItem, _mainform.optSetuna.ClotheslineEnabled))
+            {
+                scrapBase.SetClotheslineHanging(true);
+            }
+
+            // 缓存绑定必须在样式应用之前：样式恢复（如收缩样式）会在应用期间显示窗体，
+            // LayerManager 的 Shown 处理会读取 CacheItem，绑定过晚会在启动恢复时触发 NRE
+            scrapBase.CacheItem = cacheItem;
+
             var cstyle = _mainform.optSetuna.FindStyle(style.ID);
             if (cstyle != null)
             {
@@ -154,9 +166,6 @@ namespace SETUNA.Main
                     addFinished?.Invoke();
                 });
             }
-
-            // 设置所有参数再设置缓存对象
-            scrapBase.CacheItem = cacheItem;
 
             if (cstyle == null)
             {
@@ -179,9 +188,17 @@ namespace SETUNA.Main
             newScrap.Manager = this;
             _scraps.Add(newScrap);
             newScrap.OnScrapCreated();
+            // ScrapAdded 会同步让 CacheManager 绑定缓存，挂起判断只看进入本方法前是否已有缓存
+            var isFromCache = newScrap.CacheItem != null;
             if (ScrapAdded != null)
             {
                 ScrapAdded(this, new ScrapEventArgs(newScrap));
+            }
+
+            // 模式开启时新图（截图/导入/粘贴统一入口）自动挂起；缓存恢复路径已在 AddScrapFromCache 按缓存值预设
+            if (!isFromCache && _mainform.optSetuna.ClotheslineEnabled)
+            {
+                newScrap.SetClotheslineHanging(true);
             }
 
             if (show)
@@ -231,7 +248,38 @@ namespace SETUNA.Main
             foreach (var obj in _scraps)
             {
                 var scrapBase = (ScrapBase)obj;
+                if (scrapBase.IsClotheslineHanging)
+                {
+                    // 挂起中的截图不参与普通 Show 恢复，留在绳上
+                    continue;
+                }
                 scrapBase.Show();
+            }
+        }
+
+        /// <summary>显式开启统一收绳：所有未挂起的截图挂上绳子。</summary>
+        public void HangAll()
+        {
+            foreach (var obj in _scraps)
+            {
+                var scrapBase = (ScrapBase)obj;
+                if (!scrapBase.IsClotheslineHanging)
+                {
+                    scrapBase.SetClotheslineHanging(true);
+                }
+            }
+        }
+
+        /// <summary>关闭模式统一取下：按各截图记录的期望状态恢复展示（含收缩窗组合），不改位置/Scale。</summary>
+        public void UnhangAll()
+        {
+            foreach (var obj in _scraps)
+            {
+                var scrapBase = (ScrapBase)obj;
+                if (scrapBase.IsClotheslineHanging)
+                {
+                    scrapBase.SetClotheslineHanging(false);
+                }
             }
         }
 

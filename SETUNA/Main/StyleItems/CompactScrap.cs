@@ -43,20 +43,52 @@ namespace SETUNA.Main.StyleItems
                 base.TransparencyKey = Color.Magenta;
             }
             base.Opacity = item.Opacity / 100.0;
+
+            // 关联原图与位置初始化在构造时完成（可重复安全）：
+            // 挂起状态下 Show 被 SetVisibleCore 压制，Load 不会触发，必须允许隐藏状态完成初始化
+            if (scrap != null)
+            {
+                InitializeRelations();
+            }
         }
 
         // Token: 0x06000408 RID: 1032 RVA: 0x00019F00 File Offset: 0x00018100
         private void CompactScrap_Load(object sender, EventArgs e)
         {
-            if (scrap != null)
+            // 关联初始化已在构造函数完成；保留 Load 空实现以兼容 Designer 事件绑定
+        }
+
+        /// <summary>
+        /// 关联原图与位置初始化（可重复安全）：从首次 Load 拆出，
+        /// 允许挂起状态下原窗隐藏时完成初始化而不泄漏可见收缩窗。
+        /// </summary>
+        private void InitializeRelations()
+        {
+            if (_relationsInitialized)
             {
-                //if (scrap.Visible)
-                {
-                    scrap.Visible = false;
-                    scrap.StyleForm = this;
-                }
-                ConvertScrapPosToCompact();
+                return;
             }
+            _relationsInitialized = true;
+            scrap.Visible = false;
+            scrap.StyleForm = this;
+            ConvertScrapPosToCompact();
+
+            // 挂起中的原图：收缩窗同样保持隐藏（SetVisibleCore 拦截），解除挂起时由 ScrapBase 恢复
+            if (scrap.IsClotheslineHanging)
+            {
+                _createdWhileHanging = true;
+                Hide();
+            }
+        }
+
+        /// <summary>挂起期间压制收缩窗的任何显示路径；解除挂起由 ScrapBase.SetClotheslineHanging 恢复。</summary>
+        protected override void SetVisibleCore(bool value)
+        {
+            if (scrap != null && scrap.IsClotheslineHanging)
+            {
+                value = false;
+            }
+            base.SetVisibleCore(value);
         }
 
         // Token: 0x06000409 RID: 1033 RVA: 0x00019F80 File Offset: 0x00018180
@@ -188,5 +220,11 @@ namespace SETUNA.Main.StyleItems
 
         // Token: 0x0400026E RID: 622
         private Point _clickpoint;
+
+        // 关联初始化是否已完成（可重复安全步骤）
+        private bool _relationsInitialized;
+
+        /// <summary>挂起期间创建（初始化即被压制隐藏），解除挂起时由 ScrapBase 恢复显示。</summary>
+        internal bool _createdWhileHanging;
     }
 }

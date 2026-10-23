@@ -209,7 +209,7 @@ namespace SETUNA.Main.Layer
                     scrapBase = compact.scrap;
                 }
 
-                if (scrapBase != null)
+                if (scrapBase != null && scrapBase.CacheItem != null)
                 {
                     sortingOrder = scrapBase.CacheItem.SortingOrder;
                     maxSortingOrder = Math.Max(sortingOrder, maxSortingOrder);
@@ -261,7 +261,7 @@ namespace SETUNA.Main.Layer
                     scrapBase = compact.scrap;
                 }
 
-                if (scrapBase != null)
+                if (scrapBase != null && scrapBase.CacheItem != null)
                 {
                     scrapBase.CacheItem.SortingOrder = sortingOrder;
                     scrapBase.CacheItem.SaveInfo();
