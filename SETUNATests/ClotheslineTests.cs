@@ -5,6 +5,7 @@ using System.Runtime.Versioning;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json;
 using SETUNA.Main.Cache;
+using SETUNA.Main.Clothesline;
 using SETUNA.Main.Option;
 
 namespace SETUNATests
@@ -187,6 +188,224 @@ namespace SETUNATests
         /// 暴露 protected 构造函数用于测试
         private class CacheItemAccessForTest : CacheItem
         {
+        }
+    }
+
+    [TestClass]
+    [SupportedOSPlatform("windows")]
+    public class ClotheslineLayoutTests
+    {
+        // —— 预览等比适配 ——
+
+        [TestMethod]
+        public void CalculateDisplayRectangle_LandscapeImageWithinWorkArea_KeepsOriginalSize()
+        {
+            var workArea = new Rectangle(0, 0, 1920, 1040);
+            var result = ClotheslinePreviewForm.CalculateDisplayRectangle(new Size(800, 600), workArea);
+
+            Assert.AreEqual(800, result.Width);
+            Assert.AreEqual(600, result.Height);
+        }
+
+        [TestMethod]
+        public void CalculateDisplayRectangle_PortraitImageTooTall_ScaledDownKeepingRatio()
+        {
+            var workArea = new Rectangle(0, 0, 1000, 500);
+            var result = ClotheslinePreviewForm.CalculateDisplayRectangle(new Size(500, 1000), workArea);
+
+            // 高度受限：高=500，宽=250
+            Assert.AreEqual(500, result.Height);
+            Assert.AreEqual(250, result.Width);
+        }
+
+        [TestMethod]
+        public void CalculateDisplayRectangle_ExtremelyWideImage_ScaledDownKeepingRatio()
+        {
+            var workArea = new Rectangle(0, 0, 1000, 800);
+            var result = ClotheslinePreviewForm.CalculateDisplayRectangle(new Size(4000, 200), workArea);
+
+            // 宽度受限：宽=1000，高=50
+            Assert.AreEqual(1000, result.Width);
+            Assert.AreEqual(50, result.Height);
+            Assert.AreEqual(20.0, 4000 / (double)200, 0.01);
+            Assert.AreEqual(20.0, result.Width / (double)result.Height, 0.01);
+        }
+
+        [TestMethod]
+        public void CalculateDisplayRectangle_NegativeOriginWorkArea_SizeIndependentOfOrigin()
+        {
+            var workArea = new Rectangle(-1920, -200, 1920, 1040);
+            var result = ClotheslinePreviewForm.CalculateDisplayRectangle(new Size(3000, 3000), workArea);
+
+            Assert.AreEqual(1040, result.Height);
+            Assert.AreEqual(1040, result.Width);
+        }
+
+        [TestMethod]
+        public void CalculateDisplayRectangle_ImageLargerThanWorkArea_NeverExceedsWorkArea()
+        {
+            var workArea = new Rectangle(-500, 100, 640, 480);
+            var result = ClotheslinePreviewForm.CalculateDisplayRectangle(new Size(1920, 1080), workArea);
+
+            Assert.IsTrue(result.Width <= workArea.Width);
+            Assert.IsTrue(result.Height <= workArea.Height);
+            // 等比：16:9
+            Assert.AreEqual(16.0 / 9, result.Width / (double)result.Height, 0.02);
+        }
+
+        // —— 预览定位夹紧 ——
+
+        [TestMethod]
+        public void CalculatePreviewLocation_MonitorCenter_PositiveWorkAreaCentered()
+        {
+            var workArea = new Rectangle(0, 0, 1920, 1040);
+            var result = ClotheslinePreviewForm.CalculatePreviewLocation(
+                ClotheslinePreviewLocation.MonitorCenter, new Size(400, 300), workArea, Point.Empty, Point.Empty);
+
+            Assert.AreEqual(new Point(760, 370), result);
+        }
+
+        [TestMethod]
+        public void CalculatePreviewLocation_MonitorCenter_NegativeWorkAreaCentered()
+        {
+            var workArea = new Rectangle(-1920, 0, 1920, 1040);
+            var result = ClotheslinePreviewForm.CalculatePreviewLocation(
+                ClotheslinePreviewLocation.MonitorCenter, new Size(400, 300), workArea, Point.Empty, Point.Empty);
+
+            Assert.AreEqual(new Point(-1920 + 760, 370), result);
+        }
+
+        [TestMethod]
+        public void CalculatePreviewLocation_NearThumbnail_AnchorOffScreen_ClampedIntoWorkArea()
+        {
+            var workArea = new Rectangle(0, 0, 1920, 1040);
+            // 锚点在屏幕外右下
+            var result = ClotheslinePreviewForm.CalculatePreviewLocation(
+                ClotheslinePreviewLocation.NearThumbnail, new Size(400, 300), workArea, new Point(5000, 5000), Point.Empty);
+
+            Assert.AreEqual(new Point(1920 - 400, 1040 - 300), result);
+        }
+
+        [TestMethod]
+        public void CalculatePreviewLocation_NearThumbnail_AnchorWithinScreen_CenteredOnAnchor()
+        {
+            var workArea = new Rectangle(0, 0, 1920, 1040);
+            var result = ClotheslinePreviewForm.CalculatePreviewLocation(
+                ClotheslinePreviewLocation.NearThumbnail, new Size(400, 300), workArea, new Point(960, 520), Point.Empty);
+
+            Assert.AreEqual(new Point(960 - 200, 520 - 150), result);
+        }
+
+        [TestMethod]
+        public void CalculatePreviewLocation_OriginalLocation_InsideWorkArea_UsedAsIs()
+        {
+            var workArea = new Rectangle(0, 0, 1920, 1040);
+            var result = ClotheslinePreviewForm.CalculatePreviewLocation(
+                ClotheslinePreviewLocation.OriginalLocation, new Size(400, 300), workArea, Point.Empty, new Point(100, 200));
+
+            Assert.AreEqual(new Point(100, 200), result);
+        }
+
+        [TestMethod]
+        public void CalculatePreviewLocation_OriginalLocation_OutsideWorkArea_Clamped()
+        {
+            var workArea = new Rectangle(0, 0, 1920, 1040);
+            var result = ClotheslinePreviewForm.CalculatePreviewLocation(
+                ClotheslinePreviewLocation.OriginalLocation, new Size(400, 300), workArea, Point.Empty, new Point(-500, 2000));
+
+            Assert.AreEqual(new Point(0, 1040 - 300), result);
+        }
+
+        // —— 绳子缩略图与命中 ——
+
+        [TestMethod]
+        public void CalculateThumbnailSize_LandscapeImage_ScaledToWidthLimit()
+        {
+            var size = ClotheslineForm.CalculateThumbnailSize(new Size(4000, 200));
+
+            Assert.AreEqual(ClotheslineForm.MaxThumbWidth, size.Width);
+            Assert.AreEqual(9, size.Height); // 200*180/4000 = 9
+        }
+
+        [TestMethod]
+        public void CalculateThumbnailSize_SmallImage_NotUpscaled()
+        {
+            var size = ClotheslineForm.CalculateThumbnailSize(new Size(100, 50));
+
+            Assert.AreEqual(100, size.Width);
+            Assert.AreEqual(50, size.Height);
+        }
+
+        [TestMethod]
+        public void CalculateThumbnailSize_PortraitImage_ScaledToHeightLimit()
+        {
+            var size = ClotheslineForm.CalculateThumbnailSize(new Size(300, 600));
+
+            Assert.AreEqual(ClotheslineForm.MaxThumbHeight, size.Height);
+            Assert.AreEqual(70, size.Width); // 300*140/600 = 70
+            Assert.AreEqual(0.5, size.Width / (double)size.Height, 0.01);
+        }
+
+        [TestMethod]
+        public void FindItemIndexAt_PointOnPhoto_ReturnsIndex()
+        {
+            var rects = new List<Rectangle> { new Rectangle(16, 32, 100, 80), new Rectangle(128, 32, 100, 80) };
+
+            Assert.AreEqual(0, ClotheslineForm.FindItemIndexAt(rects, new Point(50, 50), 0));
+            Assert.AreEqual(1, ClotheslineForm.FindItemIndexAt(rects, new Point(200, 50), 0));
+        }
+
+        [TestMethod]
+        public void FindItemIndexAt_PointOnGapOrClip_ReturnsNegative()
+        {
+            var rects = new List<Rectangle> { new Rectangle(16, 32, 100, 80) };
+
+            // 间隙（条目右侧）
+            Assert.AreEqual(-1, ClotheslineForm.FindItemIndexAt(rects, new Point(120, 50), 0));
+            // 夹子（照片上方绳线区域）
+            Assert.AreEqual(-1, ClotheslineForm.FindItemIndexAt(rects, new Point(66, 10), 0));
+        }
+
+        [TestMethod]
+        public void FindItemIndexAt_WithScrollOffset_MapsClientPointCorrectly()
+        {
+            var rects = new List<Rectangle> { new Rectangle(16, 32, 100, 80), new Rectangle(128, 32, 100, 80) };
+
+            // 滚动偏移 100 后：条目0 移出可视区左侧，客户区 x=50 落在条目1（128-100=28..128）
+            Assert.AreEqual(1, ClotheslineForm.FindItemIndexAt(rects, new Point(50, 50), 100));
+            // 条目0 在客户区坐标 -84..16
+            Assert.AreEqual(0, ClotheslineForm.FindItemIndexAt(rects, new Point(0, 50), 100));
+        }
+
+        // —— 自动关闭判定 ——
+
+        [TestMethod]
+        public void IsPointerOverPreviewSurface_PointOnSourceOrPreview_True()
+        {
+            var sourceRect = new Rectangle(100, 100, 50, 40);
+            var previewRect = new Rectangle(300, 200, 400, 300);
+
+            Assert.IsTrue(ClotheslineController.IsPointerOverPreviewSurface(new Point(120, 120), sourceRect, previewRect));
+            Assert.IsTrue(ClotheslineController.IsPointerOverPreviewSurface(new Point(500, 400), sourceRect, previewRect));
+        }
+
+        [TestMethod]
+        public void IsPointerOverPreviewSurface_PointInGapBetweenRects_False()
+        {
+            // 两矩形间的间隙（允许跨越间隙意味着间隙内就应关闭）
+            var sourceRect = new Rectangle(100, 100, 50, 40);
+            var previewRect = new Rectangle(300, 200, 400, 300);
+
+            Assert.IsFalse(ClotheslineController.IsPointerOverPreviewSurface(new Point(200, 150), sourceRect, previewRect));
+        }
+
+        [TestMethod]
+        public void IsPointerOverPreviewSurface_EmptySourceRect_PreviewOnly()
+        {
+            var previewRect = new Rectangle(300, 200, 400, 300);
+
+            Assert.IsTrue(ClotheslineController.IsPointerOverPreviewSurface(new Point(400, 300), Rectangle.Empty, previewRect));
+            Assert.IsFalse(ClotheslineController.IsPointerOverPreviewSurface(new Point(100, 100), Rectangle.Empty, previewRect));
         }
     }
 }
