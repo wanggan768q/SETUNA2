@@ -173,13 +173,19 @@ namespace SETUNA.Main.Clothesline
             // 绳线：一条略带弧度的贝塞尔
             using (var ropePen = new Pen(Color.FromArgb(120, 80, 40), 2f))
             {
-                var midY = RopeY + ClientSize.Height / 10;
                 g.DrawBezier(ropePen, -10, RopeY, ClientSize.Width / 3, RopeY - 4, ClientSize.Width * 2 / 3, RopeY + 4, ClientSize.Width + 10, RopeY);
             }
 
             for (var i = 0; i < _itemRects.Count && i < _items.Count; i++)
             {
                 var rect = _itemRects[i];
+                // 应用滚动偏移（与命中检测 GetItemScreenRectangle 同一换算）
+                rect.Offset(-_scrollOffset, 0);
+                // 跳过视口外条目
+                if (rect.Right < 0 || rect.X > ClientSize.Width)
+                {
+                    continue;
+                }
                 // 夹子（照片矩形上方，压住绳线）
                 using (var clipBrush = new SolidBrush(Color.FromArgb(70, 70, 70)))
                 {
@@ -213,7 +219,9 @@ namespace SETUNA.Main.Clothesline
             var x = ContentPadding;
             foreach (var item in _items)
             {
-                var size = CalculateThumbnailSize(item.Thumbnail.Size);
+                var size = item.Thumbnail != null
+                    ? CalculateThumbnailSize(item.Thumbnail.Size)
+                    : new Size(MaxThumbWidth, MaxThumbHeight);
                 rects.Add(new Rectangle(x, RopeY + ClipHeight, size.Width, size.Height));
                 x += size.Width + ItemGap;
                 maxItemHeight = Math.Max(maxItemHeight, size.Height);
@@ -228,8 +236,11 @@ namespace SETUNA.Main.Clothesline
             {
                 height = 40;
             }
+            // 加宽后仍保持整个窗体落在工作区内
             var location = Location;
-            SetBounds(location.X, location.Y, width, height);
+            var newX = Math.Max(workArea.Left, Math.Min(location.X, workArea.Right - width));
+            var newY = Math.Max(workArea.Top, Math.Min(location.Y, workArea.Bottom - height));
+            SetBounds(newX, newY, width, height);
         }
 
         private int MaxScrollOffset()

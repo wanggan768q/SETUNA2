@@ -407,5 +407,77 @@ namespace SETUNATests
             Assert.IsTrue(ClotheslineController.IsPointerOverPreviewSurface(new Point(400, 300), Rectangle.Empty, previewRect));
             Assert.IsFalse(ClotheslineController.IsPointerOverPreviewSurface(new Point(100, 100), Rectangle.Empty, previewRect));
         }
+
+        // —— 200ms 自动关闭宽限状态机 ——
+
+        [TestMethod]
+        public void NextOutsideSince_PointerOverSurface_ResetsOutsideTime()
+        {
+            // 即使此前已在离开状态，回到矩形内即重置
+            Assert.IsNull(ClotheslineController.NextOutsideSince(1000, true, 1100));
+        }
+
+        [TestMethod]
+        public void NextOutsideSince_FirstTickOutside_RecordsNowNotClose()
+        {
+            // 首次离开：记录时间，不立即关闭（宽限开始）
+            var result = ClotheslineController.NextOutsideSince(null, false, 1000);
+
+            Assert.AreEqual(1000L, result);
+        }
+
+        [TestMethod]
+        public void NextOutsideSince_StillOutside_KeepsOriginalTime()
+        {
+            // 持续离开：保留首次离开时间，供调用方比较持续时间
+            var result = ClotheslineController.NextOutsideSince(1000, false, 1050);
+
+            Assert.AreEqual(1000L, result);
+        }
+
+        [TestMethod]
+        public void AutoCloseGraceSequence_CrossGapWithin200ms_ThenReturn_DoesNotClose()
+        {
+            // 模拟跨间隙：离开 50ms 轮询 3 tick 后回到矩形内 → 离开时间被重置
+            long? outside = null;
+            outside = ClotheslineController.NextOutsideSince(outside, false, 1000);
+            outside = ClotheslineController.NextOutsideSince(outside, false, 1050);
+            outside = ClotheslineController.NextOutsideSince(outside, false, 1100);
+            Assert.AreEqual(1000L, outside);
+
+            // 回到矩形内 → 重置
+            outside = ClotheslineController.NextOutsideSince(outside, true, 1150);
+            Assert.IsNull(outside);
+        }
+
+        [TestMethod]
+        public void AutoCloseGraceSequence_LeftOver200ms_ElapsedTriggersClose()
+        {
+            // 离开后经过 >= 200ms 的 tick：调用方按 now - outsideSince >= 200 判定关闭
+            long? outside = ClotheslineController.NextOutsideSince(null, false, 1000);
+            outside = ClotheslineController.NextOutsideSince(outside, false, 1050);
+            outside = ClotheslineController.NextOutsideSince(outside, false, 1200);
+
+            // 1200 - 1000 = 200 >= 200 → 应关闭
+            Assert.IsTrue(1200 - outside.Value >= 200);
+        }
+
+        // —— 绘制/命中滚动偏移一致性 ——
+
+        [TestMethod]
+        public void PaintAndHitTest_ScrollOffsetConsistency_SameTransform()
+        {
+            // 绘制与命中必须用同一换算：rect.X - scrollOffset。
+            // 命中：滚动 120 后条目1（原 X=208）的客户区范围 88..188
+            var rects = new List<Rectangle> { new Rectangle(16, 32, 180, 140), new Rectangle(208, 32, 180, 140) };
+            var hitIndex = ClotheslineForm.FindItemIndexAt(rects, new Point(100, 50), 120);
+            Assert.AreEqual(1, hitIndex);
+
+            // 绘制同一矩形应用偏移后的位置 = 命中判定的矩形位置
+            var painted = rects[1];
+            painted.Offset(-120, 0);
+            Assert.AreEqual(88, painted.X);
+            Assert.IsTrue(painted.Contains(new Point(100, 50)));
+        }
     }
 }
