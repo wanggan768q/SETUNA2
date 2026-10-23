@@ -8,6 +8,7 @@ using System.Windows.Forms;
 using System.Xml.Serialization;
 using com.clearunit;
 using SETUNA.Main;
+using SETUNA.Main.Clothesline;
 using SETUNA.Main.KeyItems;
 using SETUNA.Main.Option;
 using SETUNA.Main.Style;
@@ -41,6 +42,11 @@ namespace SETUNA
             SetSubMenu();
 
             Text = $"SETUNA {Application.ProductVersion}";
+
+            // 晾绳桥接订阅常驻（不依赖模式开关）：关闭期间新增的截图也要保持事件接线，
+            // 否则重新开启模式统一收绳时其挂起状态变化无法同步到 Controller
+            scrapBook.ScrapAdded += ScrapAdded_ClotheslineBridge;
+            scrapBook.ScrapRemoved += ScrapRemoved_ClotheslineBridge;
 
             NetUtils.Init();
         }
@@ -126,6 +132,8 @@ namespace SETUNA
                     frmClickCapture.Stop();
                 }
                 IsCapture = true;
+                // 捕获取样前暂停晾绳展示（ShowCapture 内部线程取样后才显示捕获窗，不能等其 VisibleChanged）
+                clotheslineController?.SetCapturePaused(true);
                 Console.WriteLine(string.Concat(new object[]
                 {
                     "9 - ",
@@ -182,6 +190,8 @@ namespace SETUNA
             finally
             {
                 IsCapture = false;
+                // 捕获结束（成功/取消/异常统一）恢复晾绳展示
+                clotheslineController?.SetCapturePaused(false);
                 if (frmClickCapture != null)
                 {
                     frmClickCapture.Restart();
@@ -264,6 +274,7 @@ namespace SETUNA
         {
             try
             {
+                ApplyClotheslineOption();
                 keyBook = optSetuna.GetKeyItemBook();
                 if (optSetuna.Setuna.DustBoxEnable)
                 {
@@ -354,6 +365,249 @@ namespace SETUNA
             catch (Exception ex)
             {
                 Console.WriteLine("Mainform OptionApply Exception:" + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// 晾绳模式应用：先配置持久化，再按状态变化更新模型。
+        /// 关→开：钩子安装失败则提示并回滚关闭；开→关：统一取下+隐藏+卸钩；状态未变不动。
+        /// </summary>
+        private void ApplyClotheslineOption()
+        {
+            var enabled = optSetuna.ClotheslineEnabled;
+            if (!IsStart)
+            {
+                // 启动期（LoadOption→OptionApply）不初始化晾绳：Controller 须在
+                // LayerManager.Init 之后、缓存恢复前创建（Mainform_Load 的启动块负责）
+                return;
+            }
+            switch (ClotheslineController.DecideModeAction(enabled, clotheslineModeActive))
+            {
+                case ClotheslineModeAction.None:
+                    // 重复应用设置：不重新挂回已取下的照片（幂等），仅同步预览模式
+                    if (enabled && clotheslineController != null)
+                    {
+                        clotheslineController.PreviewMode = optSetuna.ClotheslinePreviewLocation;
+                    }
+                    return;
+                case ClotheslineModeAction.Enable:
+                    EnableClotheslineMode();
+                    return;
+                case ClotheslineModeAction.Disable:
+                    DisableClotheslineMode();
+                    return;
+            }
+        }
+
+        private void EnableClotheslineMode()
+        {
+            EnsureClotheslineController();
+            clotheslineController.PreviewMode = optSetuna.ClotheslinePreviewLocation;
+            if (!clotheslineHook.Install())
+            {
+                MessageBox.Show("晾绳模式键盘钩子安装失败，已保持照片原展示状态。", "SETUNA2", MessageBoxButtons.OK, MessageBoxIcon.Hand);
+                optSetuna.ClotheslineEnabled = false;
+                return;
+            }
+            clotheslineModeActive = true;
+            clotheslineController.Show();
+            // 显式开启统一收绳（已挂起项不受影响）
+            scrapBook.HangAll();
+        }
+
+        private void DisableClotheslineMode()
+        {
+            clotheslineModeActive = false;
+            UninstallClotheslineHook();
+            clotheslineController?.Hide();
+            // 统一取下：按各截图记录的期望组合恢复展示
+            if (allScrapActive)
+            {
+                scrapBook.UnhangAll();
+            }
+            else
+            {
+                // 全部隐藏中取下：恢复展示组合后立刻隐藏（不提前显示、不进 forms 恢复列表，
+                // 隐藏前挂起窗口本就不可见，与全部隐藏语义一致）
+                foreach (var scrap in scrapBook)
+                {
+                    if (scrap.IsClotheslineHanging)
+                    {
+                        scrap.SetClotheslineHanging(false);
+                        scrap.Hide();
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// 卸钩：若本轮已消费 down 等待配对 keyup，延迟到轮次结束再卸（简报约束 9，不漏放被消费按键的后半段）；
+        /// 进程退出路径（DisposeClothesline）直接清理。
+        /// </summary>
+        private void UninstallClotheslineHook()
+        {
+            if (clotheslineHook == null)
+            {
+                return;
+            }
+            if (clotheslineHook.IsConsumingRound)
+            {
+                // 消费中的轮次：状态机在 keyup 时自动复位（ClotheslineSpaceKeyStateMachine.OnKeyUp），
+                // 排队一个 UI 轮询等待轮次结束后确定性卸钩
+                var hook = clotheslineHook;
+                var waitTimer = new System.Windows.Forms.Timer { Interval = 50 };
+                waitTimer.Tick += (s, args) =>
+                {
+                    if (!hook.IsConsumingRound || hook != clotheslineHook)
+                    {
+                        waitTimer.Stop();
+                        waitTimer.Dispose();
+                        if (hook == clotheslineHook)
+                        {
+                            hook.Uninstall();
+                        }
+                    }
+                };
+                waitTimer.Start();
+                return;
+            }
+            clotheslineHook.Uninstall();
+        }
+
+        /// <summary>创建 Controller 并接线（仅一次）：缓存桥接、事件、LayerManager 置顶回调。</summary>
+        private void EnsureClotheslineController()
+        {
+            if (clotheslineController != null)
+            {
+                return;
+            }
+
+            clotheslineController = new ClotheslineController(
+                () =>
+                {
+                    return optSetuna.ClotheslineRopePositionSaved
+                        ? optSetuna.ClotheslineRopePosition
+                        : new Point(Screen.PrimaryScreen.WorkingArea.X + 100, Screen.PrimaryScreen.WorkingArea.Bottom - 120);
+                },
+                position =>
+                {
+                    optSetuna.ClotheslineRopePosition = position;
+                    optSetuna.ClotheslineRopePositionSaved = true;
+                    SaveOption();
+                });
+
+            // 挂起/取下状态变化 → 同步绳子集合（构造函数已订阅 ScrapAdded/ScrapRemoved）
+
+            clotheslineController.ThumbnailDoubleClicked += scrap =>
+            {
+                // 双击缩略图 = 取下（走任务 3 的恢复路径，不隐式 Show）
+                scrap.SetClotheslineHanging(false);
+            };
+            clotheslineController.PreviewVisibilityChanged += visible =>
+            {
+                if (visible)
+                {
+                    SETUNA.Main.Layer.LayerManager.Instance.RefreshLayer();
+                }
+            };
+
+            clotheslineHook = new ClotheslineSpaceKeyHook(IsSpaceKeyHit);
+            clotheslineHook.ToggleRequested += () =>
+            {
+                // 钩子回调线程（安装线程消息循环）投递到 UI 线程
+                BeginInvoke(new Action(ToggleSpacePreview));
+            };
+
+            SETUNA.Main.Layer.LayerManager.TopMostExtension = BringClotheslineToFront;
+        }
+
+        /// <summary>钩子命中检测（轻量、纯内存）：鼠标在绳窗缩略图照片矩形内，或预览已打开。</summary>
+        private bool IsSpaceKeyHit()
+        {
+            if (!clotheslineModeActive || clotheslineController == null)
+            {
+                return false;
+            }
+            if (clotheslineController.IsPreviewOpen)
+            {
+                return true;
+            }
+            return clotheslineController.FindThumbnailAt(Cursor.Position) != null;
+        }
+
+        /// <summary>空格切换预览（UI 线程）：无预览则对命中的缩略图打开，有预览则关闭。</summary>
+        private void ToggleSpacePreview()
+        {
+            if (!clotheslineModeActive || clotheslineController == null)
+            {
+                return;
+            }
+            if (clotheslineController.IsPreviewOpen)
+            {
+                clotheslineController.ClosePreview();
+                return;
+            }
+            var scrap = clotheslineController.FindThumbnailAt(Cursor.Position);
+            if (scrap != null)
+            {
+                clotheslineController.OpenPreview(scrap);
+            }
+        }
+
+        private void BringClotheslineToFront()
+        {
+            clotheslineController?.BringRopeWindowsToFront();
+        }
+
+        private void ScrapAdded_ClotheslineBridge(object sender, ScrapEventArgs e)
+        {
+            var scrap = e.scrap;
+            if (scrap == null)
+            {
+                return;
+            }
+            // 缓存恢复路径的挂起预设发生在本订阅触发之前，这里补挂到绳子；
+            // 订阅常驻（模式关闭时也保持），Controller 为 null 时跳过同步
+            if (scrap.IsClotheslineHanging)
+            {
+                clotheslineController?.AttachScrap(scrap);
+            }
+            scrap.ClotheslineHangingChanged += Scrap_HangingChanged;
+            scrap.ScrapImageChangedEvent += Scrap_ImageChanged;
+        }
+
+        private void ScrapRemoved_ClotheslineBridge(object sender, ScrapEventArgs e)
+        {
+            var scrap = e.scrap;
+            if (scrap == null)
+            {
+                return;
+            }
+            scrap.ClotheslineHangingChanged -= Scrap_HangingChanged;
+            scrap.ScrapImageChangedEvent -= Scrap_ImageChanged;
+            clotheslineController?.RemoveScrap(scrap);
+        }
+
+        private void Scrap_ImageChanged(object sender, ScrapEventArgs e)
+        {
+            // 缩略图与预览随新图重建（缩放/替换图像后绳子上的小图保持同步）
+            clotheslineController?.UpdateScrap(e.scrap);
+        }
+
+        private void Scrap_HangingChanged(object sender, ScrapEventArgs e)
+        {
+            var scrap = e.scrap;
+            if (scrap == null)
+            {
+                return;
+            }
+            if (scrap.IsClotheslineHanging)
+            {
+                clotheslineController?.AttachScrap(scrap);
+            }
+            else
+            {
+                clotheslineController?.DetachScrap(scrap);
             }
         }
 
@@ -497,7 +751,12 @@ namespace SETUNA
             if (toolStripMenuItem.Tag != null)
             {
                 var scrapBase = (ScrapBase)toolStripMenuItem.Tag;
-                if (scrapBase.Visible)
+                if (scrapBase.IsClotheslineHanging)
+                {
+                    // 挂起项：滚动绳子定位其缩略图，不隐式 Show 原图
+                    clotheslineController?.ScrollToScrap(scrapBase);
+                }
+                else if (scrapBase.Visible)
                 {
                     scrapBase.Activate();
                 }
@@ -610,6 +869,24 @@ namespace SETUNA
             {
                 optSetuna.UnregistHotKey(Handle, item);
             }
+
+            // 晾绳清理：解绑、停计时、释放窗体/缩略图、确定性卸钩。
+            // 不调用 CloseAllScrap()（避免进入用户删除/回收站路径）
+            DisposeClothesline();
+        }
+
+        /// <summary>退出时的晾绳确定性清理（幂等）。</summary>
+        private void DisposeClothesline()
+        {
+            scrapBook.ScrapAdded -= ScrapAdded_ClotheslineBridge;
+            scrapBook.ScrapRemoved -= ScrapRemoved_ClotheslineBridge;
+            SETUNA.Main.Layer.LayerManager.TopMostExtension = null;
+            clotheslineHook?.Uninstall();
+            clotheslineHook = null;
+            clotheslineController?.Dispose();
+            clotheslineController = null;
+            miClotheslineHang = null;
+            clotheslineModeActive = false;
         }
 
         // Token: 0x06000211 RID: 529 RVA: 0x0000B324 File Offset: 0x00009524
@@ -631,6 +908,23 @@ namespace SETUNA
             IsStart = true;
 
             SETUNA.Main.Layer.LayerManager.Instance.Init();
+            // 晾绳控制器：层级管理初始化后、缓存恢复前创建（缓存恢复链 AddScrapFromCache 会预设挂起）
+            if (optSetuna.ClotheslineEnabled)
+            {
+                EnsureClotheslineController();
+                if (!clotheslineHook.Install())
+                {
+                    MessageBox.Show("晾绳模式键盘钩子安装失败，已保持照片原展示状态。", "SETUNA2", MessageBoxButtons.OK, MessageBoxIcon.Hand);
+                    optSetuna.ClotheslineEnabled = false;
+                    SaveOption();
+                }
+                else
+                {
+                    clotheslineModeActive = true;
+                    clotheslineController.PreviewMode = optSetuna.ClotheslinePreviewLocation;
+                    clotheslineController.Show();
+                }
+            }
             SETUNA.Main.Cache.CacheManager.Instance.Init();
             delayInitTimer.Start();
             
@@ -661,10 +955,44 @@ namespace SETUNA
         public void ScrapMenuOpening(object sender, ScrapMenuArgs e)
         {
             subMenu.Scrap = e.scrap;
+            UpdateClotheslineMenuItem(e.scrap);
             subMenu.Show(e.scrap, e.scrap.PointToClient(Cursor.Position));
 
             subMenu.MouseWheel -= SubMenu_MouseWheel;
             subMenu.MouseWheel += SubMenu_MouseWheel;
+        }
+
+        /// <summary>"挂回绳子"菜单项：仅模式开启且目标未挂起时可见；复用单实例不累积。</summary>
+        private void UpdateClotheslineMenuItem(ScrapBase scrap)
+        {
+            var applicable = clotheslineModeActive && scrap != null && !scrap.IsClotheslineHanging;
+            if (!applicable)
+            {
+                if (miClotheslineHang != null)
+                {
+                    subMenu.Items.Remove(miClotheslineHang);
+                }
+                return;
+            }
+
+            if (miClotheslineHang == null)
+            {
+                miClotheslineHang = new ToolStripMenuItem("挂回绳子");
+                miClotheslineHang.Click += MiClotheslineHang_Click;
+            }
+            if (!subMenu.Items.Contains(miClotheslineHang))
+            {
+                subMenu.Items.Insert(0, miClotheslineHang);
+            }
+        }
+
+        private void MiClotheslineHang_Click(object sender, EventArgs e)
+        {
+            var scrap = subMenu.Scrap;
+            if (scrap != null && !scrap.IsClotheslineHanging)
+            {
+                scrap.SetClotheslineHanging(true);
+            }
         }
 
         private void SubMenu_MouseWheel(object sender, MouseEventArgs e)
@@ -876,14 +1204,23 @@ namespace SETUNA
         // Token: 0x0600021C RID: 540 RVA: 0x0000B80C File Offset: 0x00009A0C
         private void CommandCutRect(Rectangle rect, string fname)
         {
-            using (var bitmap = new Bitmap(rect.Width, rect.Height, PixelFormat.Format24bppRgb))
+            // 直接抓屏路径同样暂停晾绳展示，抓取结果不含绳子/预览画面
+            clotheslineController?.SetCapturePaused(true);
+            try
             {
-                var point = new Point(rect.X, rect.Y);
-                CaptureForm.CopyFromScreen(bitmap, point);
-                if (fname == "")
+                using (var bitmap = new Bitmap(rect.Width, rect.Height, PixelFormat.Format24bppRgb))
                 {
-                    AddImageList(new ScrapSourceImage(bitmap, point));
+                    var point = new Point(rect.X, rect.Y);
+                    CaptureForm.CopyFromScreen(bitmap, point);
+                    if (fname == "")
+                    {
+                        AddImageList(new ScrapSourceImage(bitmap, point));
+                    }
                 }
+            }
+            finally
+            {
+                clotheslineController?.SetCapturePaused(false);
             }
         }
 
@@ -979,6 +1316,9 @@ namespace SETUNA
 
             allScrapActive = active;
 
+            // 全部隐藏与捕获暂停分别记录（Controller 内部互不清除）
+            clotheslineController?.SetAllHidden(!active);
+
             if (active)
             {
                 forms.ForEach(x => x.Visible = active);
@@ -1060,5 +1400,11 @@ namespace SETUNA
 
         private List<Form> forms = new List<Form>();
         private bool allScrapActive = true;
+
+        // —— 晾绳模式（任务 4 接线） ——
+        private ClotheslineController clotheslineController;
+        private ClotheslineSpaceKeyHook clotheslineHook;
+        private ToolStripMenuItem miClotheslineHang;
+        private bool clotheslineModeActive;
     }
 }

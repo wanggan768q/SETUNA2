@@ -88,6 +88,26 @@ namespace SETUNA.Main.Clothesline
             Invalidate();
         }
 
+        /// <summary>滚动使指定条目进入可视区（截图列表激活挂起项时定位，不显示原图）。</summary>
+        public void ScrollToIndex(int index)
+        {
+            if (index < 0 || index >= _itemRects.Count)
+            {
+                return;
+            }
+            var max = MaxScrollOffset();
+            var rect = _itemRects[index];
+            if (rect.X - _scrollOffset < ContentPadding)
+            {
+                _scrollOffset = Math.Max(0, Math.Min(rect.X - ContentPadding, max));
+            }
+            else if (rect.Right - _scrollOffset > ClientSize.Width - ContentPadding)
+            {
+                _scrollOffset = Math.Max(0, Math.Min(rect.Right - ClientSize.Width + ContentPadding, max));
+            }
+            Invalidate();
+        }
+
         /// <summary>命中检测：屏幕坐标 → 命中的条目；夹子与间隙不算命中。</summary>
         public ClotheslineItem FindItemAt(Point screenPoint)
         {

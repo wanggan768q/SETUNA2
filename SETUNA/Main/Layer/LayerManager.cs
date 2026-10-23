@@ -25,6 +25,9 @@ namespace SETUNA.Main.Layer
         // 窗体过滤器
         private IWindowFilter windowFilter;
 
+        /// <summary>刷新末尾的附加置顶回调（如晾绳：绳子→预览顺序）；宿主注入，层级管理器不依赖具体组件。</summary>
+        public static Action TopMostExtension;
+
 
         public void Init()
         {
@@ -94,6 +97,9 @@ namespace SETUNA.Main.Layer
 
                 item.TopMost = true;
             }
+
+            // 附加置顶（晾绳绳子→预览），保证预览高于绳子且不受上方循环影响
+            TopMostExtension?.Invoke();
         }
 
         public void OptimizeLayerCounter()
