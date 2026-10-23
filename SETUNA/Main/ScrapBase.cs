@@ -58,6 +58,9 @@ namespace SETUNA.Main
 
         public event ScrapBase.ScrapEventHandler ScrapStyleRemovedEvent;
 
+        /// <summary>晾绳挂起状态变化（宿主订阅后桥接晾绳组件，ScrapBase 不直接依赖 Controller）。</summary>
+        public event ScrapBase.ScrapEventHandler ClotheslineHangingChanged;
+
 
         // Token: 0x1700000C RID: 12
         // (get) Token: 0x06000046 RID: 70 RVA: 0x000035DC File Offset: 0x000017DC
@@ -830,6 +833,84 @@ namespace SETUNA.Main
         public new void SetBounds(int x, int y, int width, int height, BoundsSpecified specified)
         {
             SetBoundsCore(x, y, width, height, specified);
+        }
+
+        /// <summary>挂起时的期望可见状态：记录挂起前普通窗与 StyleForm（收缩窗）的组合。</summary>
+        public class ClotheslineDesiredVisibility
+        {
+            public bool ScrapVisible { set; get; }
+            public bool StyleFormVisible { set; get; }
+        }
+
+        /// <summary>是否处于晾绳挂起状态（挂起只隐藏不 Close，位置/Scale 不受影响）。</summary>
+        public bool IsClotheslineHanging { get; private set; }
+
+        /// <summary>挂起前记录的期望展示组合；未挂起时为 null。</summary>
+        private ClotheslineDesiredVisibility _clotheslineDesired;
+
+        /// <summary>挂起/取下的统一入口：挂起时强制隐藏并记录期望状态，取下时按记录恢复。</summary>
+        public void SetClotheslineHanging(bool hanging)
+        {
+            if (IsClotheslineHanging == hanging)
+            {
+                return;
+            }
+
+            if (hanging)
+            {
+                // 记录当前展示组合（含收缩窗 StyleForm 的可见状态），随后统一压制
+                _clotheslineDesired = new ClotheslineDesiredVisibility
+                {
+                    ScrapVisible = _visible,
+                    StyleFormVisible = StyleForm != null && StyleForm.Visible
+                };
+                IsClotheslineHanging = true;
+                if (StyleForm != null && StyleForm.Visible)
+                {
+                    StyleForm.Hide();
+                }
+                Visible = false;
+            }
+            else
+            {
+                IsClotheslineHanging = false;
+                var desired = _clotheslineDesired;
+                _clotheslineDesired = null;
+
+                // 恢复收缩窗：含挂起前已有的（desired 记录）与挂起期间新建的
+                //（其 InitializeRelations 走 Hide 分支被压制）。FormClosed 回调负责写回位置。
+                if (StyleForm is CompactScrap compactForm && !compactForm.IsDisposed
+                    && ((desired != null && desired.StyleFormVisible) || compactForm._createdWhileHanging))
+                {
+                    compactForm.Show();
+                }
+                if (desired == null || desired.ScrapVisible)
+                {
+                    Visible = true;
+                }
+            }
+
+            if (ClotheslineHangingChanged != null)
+            {
+                ClotheslineHangingChanged(this, new ScrapEventArgs(this));
+            }
+
+            // 仅在挂起/取下状态变化时写缓存，不随布局变化重写
+            if (_cacheItem != null)
+            {
+                _cacheItem.ClotheslineHanging = hanging;
+                _cacheItem.SaveInfo();
+            }
+        }
+
+        /// <summary>统一展示拦截：挂起期间所有 Show/Visible 赋值路径都被强制隐藏，不丢弃期望状态。</summary>
+        protected override void SetVisibleCore(bool value)
+        {
+            if (IsClotheslineHanging)
+            {
+                value = false;
+            }
+            base.SetVisibleCore(value);
         }
 
         public void ApplyStylesFromCache(CStyle style, Point clickpoint, Action applyFinished = null)

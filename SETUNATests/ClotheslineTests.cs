@@ -4,9 +4,12 @@ using System.IO;
 using System.Runtime.Versioning;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json;
+using SETUNA;
+using SETUNA.Main;
 using SETUNA.Main.Cache;
 using SETUNA.Main.Clothesline;
 using SETUNA.Main.Option;
+using SETUNA.Main.StyleItems;
 
 namespace SETUNATests
 {
@@ -479,5 +482,417 @@ namespace SETUNATests
             Assert.AreEqual(88, painted.X);
             Assert.IsTrue(painted.Contains(new Point(100, 50)));
         }
+    }
+
+    [TestClass]
+    [SupportedOSPlatform("windows")]
+    public class ClotheslineLifecycleTests
+    {
+        private string _originalCachePath;
+        private string _tempCacheRoot;
+
+        [TestInitialize]
+        public void Setup()
+        {
+            _originalCachePath = CacheManager.Path;
+            _tempCacheRoot = Path.Combine(Path.GetTempPath(), "SETUNATests_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(_tempCacheRoot);
+            CacheManager.Path = _tempCacheRoot;
+        }
+
+        [TestCleanup]
+        public void Cleanup()
+        {
+            CacheManager.Path = _originalCachePath;
+            if (Directory.Exists(_tempCacheRoot))
+            {
+                Directory.Delete(_tempCacheRoot, true);
+            }
+        }
+
+        private static string FolderName(DateTime createTime)
+        {
+            return createTime.ToString("yyyy-MM-dd HH-mm-ss-ff");
+        }
+
+        /// 在 STA 线程上执行（WinForms 窗体需要 STA）；失败时透传异常
+        private static void RunOnSta(Action action)
+        {
+            var failure = (Exception)null;
+            var thread = new System.Threading.Thread(() =>
+            {
+                try
+                {
+                    action();
+                }
+                catch (Exception ex)
+                {
+                    failure = ex;
+                }
+            });
+            thread.SetApartmentState(System.Threading.ApartmentState.STA);
+            thread.Start();
+            thread.Join();
+            if (failure != null)
+            {
+                throw failure;
+            }
+        }
+
+        /// <summary>
+        /// 在带完整消息循环的 STA 线程上执行。DrawToBitmap（CompactScrap 构造路径）
+        /// 依赖创建线程上的消息处理，裸 STA 线程会死锁，故用 Application.Run 承载。
+        /// ScrapBase.OnPaint 解引用 Mainform.Instance.optSetuna，须先提供 Mainform 实例，
+        /// 否则首帧绘制 NRE 会让消息循环静默挂死。
+        /// </summary>
+        private static void RunOnStaWithMessagePump(Action action)
+        {
+            var failure = (Exception)null;
+            var done = new System.Threading.ManualResetEvent(false);
+            var thread = new System.Threading.Thread(() =>
+            {
+                var host = new Form();
+                host.Shown += (s, e) =>
+                {
+                    try
+                    {
+                        var mainform = new Mainform();
+                        action();
+                    }
+                    catch (Exception ex)
+                    {
+                        failure = ex;
+                    }
+                    finally
+                    {
+                        done.Set();
+                        Application.ExitThread();
+                    }
+                };
+                Application.Run(host);
+            });
+            thread.SetApartmentState(System.Threading.ApartmentState.STA);
+            thread.Start();
+            done.WaitOne(30000);
+            thread.Join(5000);
+            if (failure != null)
+            {
+                throw failure;
+            }
+        }
+
+        private static CacheItem CreateTempCacheItem(DateTime createTime)
+        {
+            return new CacheItemAccessForTest
+            {
+                CreateTime = createTime,
+                Position = new Point(30, 40)
+            };
+        }
+
+        // —— 缓存三态语义（纯逻辑 + 临时缓存文件） ——
+
+        [TestMethod]
+        public void ResolveHanging_NullMigratesToTrue_AndWritesBack()
+        {
+            var createTime = new DateTime(2026, 3, 3, 9, 0, 0);
+            var item = CreateTempCacheItem(createTime);
+            Assert.IsNull(item.ClotheslineHanging);
+
+            Assert.IsTrue(ClotheslineCacheMigration.ResolveHanging(item, clotheslineEnabled: true));
+            Assert.IsTrue(item.ClotheslineHanging.Value);
+
+            var loaded = CacheItem.Read(Path.Combine(CacheManager.Path, FolderName(createTime)));
+            Assert.IsTrue(loaded.ClotheslineHanging.Value);
+        }
+
+        [TestMethod]
+        public void ResolveHanging_ModeDisabled_DoesNotMigrateOrHang()
+        {
+            var createTime = new DateTime(2026, 3, 3, 9, 30, 0);
+            var item = CreateTempCacheItem(createTime);
+            Assert.IsNull(item.ClotheslineHanging);
+
+            Assert.IsFalse(ClotheslineCacheMigration.ResolveHanging(item, clotheslineEnabled: false));
+            // 模式关闭不迁移，缓存保持 null（旧缓存语义不丢失）
+            Assert.IsNull(item.ClotheslineHanging);
+        }
+
+        [TestMethod]
+        public void ResolveHanging_FalseStaysFalse_NoRewrite()
+        {
+            var createTime = new DateTime(2026, 3, 3, 10, 0, 0);
+            var item = CreateTempCacheItem(createTime);
+            item.ClotheslineHanging = false;
+            item.SaveInfo();
+
+            Assert.IsFalse(ClotheslineCacheMigration.ResolveHanging(item, clotheslineEnabled: true));
+
+            var loaded = CacheItem.Read(Path.Combine(CacheManager.Path, FolderName(createTime)));
+            Assert.IsFalse(loaded.ClotheslineHanging.Value);
+        }
+
+        [TestMethod]
+        public void ResolveHanging_NullItem_ReturnsFalse()
+        {
+            Assert.IsFalse(ClotheslineCacheMigration.ResolveHanging(null, clotheslineEnabled: true));
+        }
+
+        // —— 挂起/取下生命周期（STA 冒烟） ——
+
+        [TestMethod]
+        public void HangAndDetach_PositionAndScaleUnchanged()
+        {
+            RunOnSta(() =>
+            {
+                var scrap = new ScrapBase();
+                try
+                {
+                    scrap.Image = new Bitmap(200, 100);
+                    scrap.Location = new Point(111, 222);
+                    scrap.Scale = 150;
+
+                    scrap.SetClotheslineHanging(true);
+                    Assert.IsTrue(scrap.IsClotheslineHanging);
+                    Assert.AreEqual(new Point(111, 222), scrap.Location);
+                    Assert.AreEqual(150, scrap.Scale);
+
+                    scrap.SetClotheslineHanging(false);
+                    Assert.IsFalse(scrap.IsClotheslineHanging);
+                    Assert.AreEqual(new Point(111, 222), scrap.Location);
+                    Assert.AreEqual(150, scrap.Scale);
+                }
+                finally
+                {
+                    scrap.ScrapClose();
+                }
+            });
+        }
+
+        [TestMethod]
+        public void Hang_SuppressesShowViaSetVisibleCore_DetachRestores()
+        {
+            RunOnSta(() =>
+            {
+                var scrap = new ScrapBase();
+                try
+                {
+                    scrap.Show();
+                    Assert.IsTrue(scrap.Visible);
+
+                    scrap.SetClotheslineHanging(true);
+                    Assert.IsFalse(scrap.Visible);
+
+                    // 挂起期间 Show/Visible 赋值全部被 SetVisibleCore 压制
+                    scrap.Show();
+                    scrap.Visible = true;
+                    Assert.IsFalse(scrap.Visible);
+
+                    scrap.SetClotheslineHanging(false);
+                    Assert.IsTrue(scrap.Visible);
+                }
+                finally
+                {
+                    scrap.ScrapClose();
+                }
+            });
+        }
+
+        [TestMethod]
+        public void Hang_HiddenBeforeStayHiddenAfterDetach()
+        {
+            RunOnSta(() =>
+            {
+                var scrap = new ScrapBase();
+                try
+                {
+                    scrap.Image = new Bitmap(200, 100);
+                    scrap.Show();
+                    scrap.Hide();
+                    // 挂起前就是隐藏状态 → 取下后保持隐藏
+                    scrap.SetClotheslineHanging(true);
+                    scrap.SetClotheslineHanging(false);
+                    Assert.IsFalse(scrap.Visible);
+                }
+                finally
+                {
+                    scrap.ScrapClose();
+                }
+            });
+        }
+
+        [TestMethod]
+        public void Hang_WritesCacheOnlyOnTransition()
+        {
+            RunOnSta(() =>
+            {
+                var createTime = DateTime.Now;
+                var item = CreateTempCacheItem(createTime);
+                item.SaveInfo();
+
+                var scrap = new ScrapBase();
+                try
+                {
+                    scrap.CacheItem = item;
+                    scrap.SetClotheslineHanging(true);
+                    Assert.IsTrue(item.ClotheslineHanging.Value);
+
+                    var loaded = CacheItem.Read(Path.Combine(CacheManager.Path, FolderName(createTime)));
+                    Assert.IsTrue(loaded.ClotheslineHanging.Value);
+
+                    scrap.SetClotheslineHanging(false);
+                    var loadedAfter = CacheItem.Read(Path.Combine(CacheManager.Path, FolderName(createTime)));
+                    Assert.IsFalse(loadedAfter.ClotheslineHanging.Value);
+                }
+                finally
+                {
+                    scrap.CacheItem = null;
+                    scrap.ScrapClose();
+                }
+            });
+        }
+
+        [TestMethod]
+        public void SetVisibleCore_RepeatHangCalls_Idempotent()
+        {
+            RunOnSta(() =>
+            {
+                var scrap = new ScrapBase();
+                try
+                {
+                    scrap.Show();
+                    scrap.SetClotheslineHanging(true);
+                    // 重复挂起不改变状态（简报约束 11：重复恢复不重置取下状态的同族检查）
+                    scrap.SetClotheslineHanging(true);
+                    Assert.IsTrue(scrap.IsClotheslineHanging);
+
+                    scrap.SetClotheslineHanging(false);
+                    scrap.SetClotheslineHanging(false);
+                    Assert.IsFalse(scrap.IsClotheslineHanging);
+                    Assert.IsTrue(scrap.Visible);
+                }
+                finally
+                {
+                    scrap.ScrapClose();
+                }
+            });
+        }
+
+        [TestMethod]
+        public void Hang_Detach_RaisesHangingChangedEachTransition()
+        {
+            RunOnSta(() =>
+            {
+                var scrap = new ScrapBase();
+                try
+                {
+                    var changes = new List<bool>();
+                    scrap.ClotheslineHangingChanged += (s, e) => changes.Add(((ScrapBase)s).IsClotheslineHanging);
+
+                    scrap.SetClotheslineHanging(true);
+                    scrap.SetClotheslineHanging(true);
+                    scrap.SetClotheslineHanging(false);
+
+                    CollectionAssert.AreEqual(new List<bool> { true, false }, changes);
+                }
+                finally
+                {
+                    scrap.ScrapClose();
+                }
+            });
+        }
+
+        // —— 收缩样式组合（简报场景 5） ——
+
+        private static CCompactStyleItem CreateCompactItem()
+        {
+            return new CCompactStyleItem { LineColor = Color.Blue.ToArgb(), SoldLine = false, Opacity = 100 };
+        }
+
+        [TestMethod]
+        public void HangWithCompactForm_NoVisibleWindowLeak_DetachRestoresCompact()
+        {
+            RunOnStaWithMessagePump(() =>
+            {
+                var scrap = new ScrapBase();
+                CompactScrap compact = null;
+                try
+                {
+                    scrap.Image = new Bitmap(200, 100);
+                    scrap.Show();
+
+                    // 挂起前处于收缩样式：收缩窗可见、原窗被其隐藏
+                    compact = new CompactScrap(scrap, CreateCompactItem(), Point.Empty);
+                    compact.Show();
+                    Assert.IsTrue(compact.Visible);
+                    Assert.IsFalse(scrap.Visible);
+                    Assert.AreEqual(compact, scrap.StyleForm);
+
+                    scrap.SetClotheslineHanging(true);
+                    // 挂起后无可见窗口泄漏
+                    Assert.IsFalse(scrap.Visible);
+                    Assert.IsFalse(compact.Visible);
+
+                    // 挂起期间所有展示路径被压制
+                    scrap.Show();
+                    compact.Show();
+                    Assert.IsFalse(scrap.Visible);
+                    Assert.IsFalse(compact.Visible);
+
+                    scrap.SetClotheslineHanging(false);
+                    // 取下恢复挂起前的组合：收缩窗可见、原窗保持隐藏
+                    Assert.IsTrue(compact.Visible);
+                    Assert.IsFalse(scrap.Visible);
+                }
+                finally
+                {
+                    scrap.StyleForm = null;
+                    compact?.Dispose();
+                    scrap.ScrapClose();
+                    scrap.Dispose();
+                }
+            });
+        }
+
+        [TestMethod]
+        public void CompactCreatedWhileHanging_StaysHidden()
+        {
+            RunOnStaWithMessagePump(() =>
+            {
+                var scrap = new ScrapBase();
+                CompactScrap compact = null;
+                try
+                {
+                    scrap.Image = new Bitmap(200, 100);
+                    scrap.Show();
+                    scrap.SetClotheslineHanging(true);
+
+                    // 模拟挂起中的样式恢复：收缩窗在挂起状态下创建并 Show
+                    compact = new CompactScrap(scrap, CreateCompactItem(), Point.Empty);
+                    compact.Show();
+
+                    // 初始化完成（StyleForm 绑定、位置换算），但不泄漏可见窗口
+                    Assert.AreEqual(compact, scrap.StyleForm);
+                    Assert.IsFalse(compact.Visible);
+                    Assert.IsFalse(scrap.Visible);
+
+                    // 取下后恢复收缩窗组合
+                    scrap.SetClotheslineHanging(false);
+                    Assert.IsTrue(compact.Visible);
+                }
+                finally
+                {
+                    scrap.StyleForm = null;
+                    compact?.Dispose();
+                    scrap.ScrapClose();
+                    scrap.Dispose();
+                }
+            });
+        }
+    }
+
+    /// 暴露 CacheItem protected 构造函数用于测试
+    public class CacheItemAccessForTest : CacheItem
+    {
     }
 }
