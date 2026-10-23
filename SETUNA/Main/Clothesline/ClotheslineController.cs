@@ -25,6 +25,7 @@ namespace SETUNA.Main.Clothesline
         private ClotheslinePreviewForm _previewForm;
         private ScrapBase _previewSource;
         private System.Windows.Forms.Timer _autoCloseTimer;
+        private long? _outsideSince;
         private Image _previewImage;
         private ClotheslinePreviewLocation _previewMode = ClotheslinePreviewLocation.MonitorCenter;
         private bool _visible;
@@ -166,6 +167,8 @@ namespace SETUNA.Main.Clothesline
             _previewForm?.ClosePreview();
             _previewImage?.Dispose();
             _previewImage = null;
+            StopAutoCloseTimer();
+            _outsideSince = null;
             if (wasVisible)
             {
                 PreviewVisibilityChanged?.Invoke(false);
@@ -175,6 +178,7 @@ namespace SETUNA.Main.Clothesline
         /// <summary>重置自动关闭计时（任务 4 空格切换复用）。</summary>
         public void RestartAutoCloseTimer()
         {
+            _outsideSince = null;
             if (_autoCloseTimer == null)
             {
                 _autoCloseTimer = new System.Windows.Forms.Timer { Interval = AutoCloseCheckIntervalMs };
@@ -242,26 +246,35 @@ namespace SETUNA.Main.Clothesline
 
         private void DisplaySettingsChanged(object sender, EventArgs e)
         {
-            if (_ropeForm == null || !_ropeForm.Visible)
+            // SystemEvents 在内部线程触发，UI 工作投递回 UI 线程
+            var ropeForm = _ropeForm;
+            if (ropeForm == null || ropeForm.IsDisposed || !ropeForm.IsHandleCreated)
             {
                 return;
             }
-            // 显示器变化：把绳子夹回任一可见工作区，保证可见可拖回
-            var location = _ropeForm.Location;
-            var clamped = false;
-            foreach (var screen in Screen.AllScreens)
+            ropeForm.BeginInvoke(new Action(() =>
             {
-                var area = screen.WorkingArea;
-                if (area.Contains(location))
+                if (_disposed || _ropeForm == null || !_ropeForm.Visible)
                 {
-                    clamped = true;
-                    break;
+                    return;
                 }
-            }
-            if (!clamped)
-            {
-                _ropeForm.Location = Screen.PrimaryScreen.WorkingArea.Location;
-            }
+                // 显示器变化：把绳子夹回任一可见工作区，保证可见可拖回
+                var location = _ropeForm.Location;
+                var clamped = false;
+                foreach (var screen in Screen.AllScreens)
+                {
+                    var area = screen.WorkingArea;
+                    if (area.Contains(location))
+                    {
+                        clamped = true;
+                        break;
+                    }
+                }
+                if (!clamped)
+                {
+                    _ropeForm.Location = Screen.PrimaryScreen.WorkingArea.Location;
+                }
+            }));
         }
 
         private void UpdateRopeItems()
@@ -279,6 +292,7 @@ namespace SETUNA.Main.Clothesline
                 _previewForm = new ClotheslinePreviewForm();
             }
 
+            var wasVisible = _previewForm.Visible;
             var workArea = Screen.FromControl(_ropeForm ?? (Control)source).WorkingArea;
             var thumbnailAnchor = GetThumbnailScreenCenter(source);
             var originalLocation = source.TargetLocation;
@@ -291,7 +305,11 @@ namespace SETUNA.Main.Clothesline
             if (_previewForm.Visible)
             {
                 _previewForm.BringToFront();
-                PreviewVisibilityChanged?.Invoke(true);
+                if (!wasVisible)
+                {
+                    // 仅不可见→可见时触发，切换源不重复通知
+                    PreviewVisibilityChanged?.Invoke(true);
+                }
                 RestartAutoCloseTimer();
             }
         }
@@ -314,16 +332,29 @@ namespace SETUNA.Main.Clothesline
             if (_previewForm == null || !_previewForm.Visible || _previewSource == null)
             {
                 StopAutoCloseTimer();
+                _outsideSince = null;
                 return;
             }
 
             var previewRect = _previewForm.PreviewScreenRectangle;
             var sourceRect = GetThumbnailScreenRectangle(_previewSource);
             var mouse = Cursor.Position;
-            if (!IsPointerOverPreviewSurface(mouse, sourceRect, previewRect))
+            var now = Environment.TickCount;
+            _outsideSince = NextOutsideSince(_outsideSince, IsPointerOverPreviewSurface(mouse, sourceRect, previewRect), now);
+            // 持续离开超过宽限期才关闭；回到任一矩形即重置（跨间隙有 200ms 宽限）
+            if (_outsideSince.HasValue && now - _outsideSince.Value >= AutoCloseDelayMs)
             {
                 ClosePreview();
             }
+        }
+
+        /// <summary>
+        /// 自动关闭宽限状态机（纯函数，供测试）：鼠标在矩形内 → 重置为 null；
+        /// 离开中 → 首次记录 now，之后保持不变（供调用方比较持续时间）。
+        /// </summary>
+        public static long? NextOutsideSince(long? outsideSince, bool pointerOverSurface, long nowMs)
+        {
+            return pointerOverSurface ? null : (outsideSince ?? nowMs);
         }
 
         private Rectangle GetThumbnailScreenRectangle(ScrapBase source)
