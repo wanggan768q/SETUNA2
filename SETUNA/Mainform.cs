@@ -490,7 +490,7 @@ namespace SETUNA
                 {
                     return optSetuna.ClotheslineRopePositionSaved
                         ? optSetuna.ClotheslineRopePosition
-                        : new Point(Screen.PrimaryScreen.WorkingArea.X + 100, Screen.PrimaryScreen.WorkingArea.Bottom - 120);
+                        : new Point(Screen.PrimaryScreen.WorkingArea.X + 100, Screen.PrimaryScreen.WorkingArea.Top + 8);
                 },
                 position =>
                 {
@@ -577,6 +577,9 @@ namespace SETUNA
             }
             scrap.ClotheslineHangingChanged += Scrap_HangingChanged;
             scrap.ScrapImageChangedEvent += Scrap_ImageChanged;
+            // 原地旋转（RotateFlip 改像素不改 Image 引用）不触发 ScrapImageChanged，
+            // 计划要求样式完成（含原地旋转）后更新缩略图和预览，走样式应用事件补齐
+            scrap.ScrapStyleAppliedEvent += Scrap_ImageChanged;
         }
 
         private void ScrapRemoved_ClotheslineBridge(object sender, ScrapEventArgs e)
@@ -588,6 +591,7 @@ namespace SETUNA
             }
             scrap.ClotheslineHangingChanged -= Scrap_HangingChanged;
             scrap.ScrapImageChangedEvent -= Scrap_ImageChanged;
+            scrap.ScrapStyleAppliedEvent -= Scrap_ImageChanged;
             clotheslineController?.RemoveScrap(scrap);
         }
 
