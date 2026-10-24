@@ -53,7 +53,7 @@ namespace SETUNA.Main
         /// <summary>窗体边框风格（int 对齐 WinForms FormBorderStyle）。</summary>
         int FormBorderStyle { set; get; }
         Color BackColor { set; get; }
-        Padding Padding { set; get; }
+        System.Windows.Forms.Padding Padding { set; get; }
 
         // ===== 几何 =====
 
