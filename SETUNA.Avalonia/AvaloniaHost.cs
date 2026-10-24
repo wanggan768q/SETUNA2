@@ -53,7 +53,19 @@ namespace SETUNA.Avalonia
             ScrapUiFactory.MenuListener = () => NullMenuListener.Instance;
 
             HostCommands.RequestCapture = () => Task.Run(() => StartCapture());
-            HostCommands.RequestOption = () => { /* 期 6：设置窗口 */ };
+            HostCommands.RequestOption = () =>
+            {
+                global::Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    var editor = new Views.OptionWindow(Option, () =>
+                    {
+                        SaveOption();
+                        ScrapUiOptionProvider.Styles = Option.Styles;
+                        ApplyHotkeysFromOption();
+                    });
+                    editor.Show(_ownerWindow);
+                });
+            };
             HostCommands.RequestShutdown = () =>
             {
                 SaveOption();
@@ -72,6 +84,18 @@ namespace SETUNA.Avalonia
             SetupClothesline();
 
             return true;
+        }
+
+        /// <summary>设置保存后重注册热键（对齐旧 Mainform 选项变更重注册）。</summary>
+        private void ApplyHotkeysFromOption()
+        {
+            if (!PlatformServices.IsRegistered)
+            {
+                return;
+            }
+            var hotkey = PlatformServices.Instance.Hotkey;
+            hotkey.UnregisterAll();
+            SetupHotkeys();
         }
 
         // ===== 晾绳模式（期 5b） =====
