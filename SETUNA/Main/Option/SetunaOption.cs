@@ -762,7 +762,8 @@ namespace SETUNA.Main.Option
                 ClotheslineEnabled = ClotheslineEnabled,
                 ClotheslinePreviewLocation = ClotheslinePreviewLocation,
                 ClotheslineRopePosition = ClotheslineRopePosition,
-                ClotheslineRopePositionSaved = ClotheslineRopePositionSaved
+                ClotheslineRopePositionSaved = ClotheslineRopePositionSaved,
+                ClotheslineRopeOrientation = ClotheslineRopeOrientation
             };
             for (var i = 0; i < Styles.Count; i++)
             {
@@ -818,6 +819,9 @@ namespace SETUNA.Main.Option
 
         // 绳子位置是否已保存过
         public bool ClotheslineRopePositionSaved;
+
+        /// <summary>绳子方向（Auto 按屏幕宽高比解析）。</summary>
+        public ClotheslineRopeOrientation ClotheslineRopeOrientation;
 
         // Token: 0x0200003D RID: 61
         public class ScrapOptionData
@@ -1180,5 +1184,16 @@ namespace SETUNA.Main.Option
         NearThumbnail,
         // 截图原位置
         OriginalLocation
+    }
+
+    /// <summary>绳子方向：自动按屏幕宽高比 / 强制横向 / 强制竖向。</summary>
+    public enum ClotheslineRopeOrientation
+    {
+        // 自动（宽屏横绳、竖屏竖绳）
+        Auto,
+        // 强制横向
+        Horizontal,
+        // 强制竖向
+        Vertical
     }
 }

@@ -462,6 +462,33 @@ namespace SETUNA.Main.Clothesline
             return optionEnabled ? ClotheslineModeAction.Enable : ClotheslineModeAction.Disable;
         }
 
+        /// <summary>方向解析：Auto 按工作区宽高比，显式值直接生效。竖屏（高>宽）为竖。</summary>
+        public static bool ResolveVertical(ClotheslineRopeOrientation orientation, Rectangle workArea)
+        {
+            switch (orientation)
+            {
+                case ClotheslineRopeOrientation.Horizontal:
+                    return false;
+                case ClotheslineRopeOrientation.Vertical:
+                    return true;
+                default:
+                    return workArea.Height > workArea.Width;
+            }
+        }
+
+        /// <summary>默认绳子位置：横=顶部偏左；竖=右边缘垂直居中（估算尺寸 60x200，仅保证落在工作区内）。</summary>
+        public static Point CalculateDefaultRopePosition(bool vertical, Rectangle workArea)
+        {
+            if (!vertical)
+            {
+                return new Point(workArea.X + 100, workArea.Y + 8);
+            }
+            const int estimatedWidth = 60;
+            const int estimatedHeight = 200;
+            var height = Math.Min(estimatedHeight, workArea.Height);
+            return new Point(workArea.Right - estimatedWidth - 8, workArea.Y + (workArea.Height - height) / 2);
+        }
+
         private void StopAutoCloseTimer()
         {
             _autoCloseTimer?.Stop();
