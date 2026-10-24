@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using GdiBitmap = System.Drawing.Bitmap;
 using SETUNA.Main.Cache;
+using SETUNA.Main.StyleItems;
 using SETUNA.Main.Option;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -11,6 +12,7 @@ using SETUNA.Avalonia.Views;
 using SETUNA.Core.Platform;
 using SETUNA.Main;
 using SETUNA.Main.Cache;
+using SETUNA.Main.StyleItems;
 using SETUNA.Main.Style;
 
 namespace SETUNA.Avalonia
@@ -56,6 +58,8 @@ namespace SETUNA.Avalonia
                 Environment.Exit(0);
             };
 
+            RegisterStylePanels();
+
             SetupTray();
             SetupHotkeys();
 
@@ -64,6 +68,100 @@ namespace SETUNA.Avalonia
             cacheManager.Init(ScrapBook);
 
             return true;
+        }
+
+        // ===== 样式编辑面板注册（期 4） =====
+
+        private void RegisterStylePanels()
+        {
+            StyleUiFactory.EditDialogFactory = item =>
+            {
+                global::Avalonia.Controls.Window panel = item switch
+                {
+                    CMoveStyleItem i => new Views.Panels.MoveStyleItemPanel(i),
+                    CScaleStyleItem i => new Views.Panels.ScaleStyleItemPanel(i),
+                    COpacityStyleItem i => new Views.Panels.OpacityStyleItemPanel(i),
+                    CRotateStyleItem i => new Views.Panels.RotateStyleItemPanel(i),
+                    CCopyStyleItem i => new Views.Panels.CopyStyleItemPanel(i),
+                    CTimerStyleItem i => new Views.Panels.TimerStyleItemPanel(i),
+                    CWindowStyleItem i => new Views.Panels.WindowStyleItemPanel(i),
+                    CMarginStyleItem i => new Views.Panels.MarginStyleItemPanel(i),
+                    CCompactStyleItem i => new Views.Panels.CompactStyleItemPanel(i),
+                    CImageBmpStyleItem i => new Views.Panels.ImageBmpStyleItemPanel(i),
+                    CImageJpegStyleItem i => new Views.Panels.ImageJpegStyleItemPanel(i),
+                    CImagePngStyleItem i => new Views.Panels.ImagePngStyleItemPanel(i),
+                    _ => null,
+                };
+                return panel == null ? null : new PanelDialogHost(panel, _ownerWindow);
+            };
+
+            var owner = _ownerWindow;
+            StyleUiFactory.TrimDialogFactory = scrap => new TrimDialogHost(new Views.TrimWindow((IScrap)scrap), owner);
+
+            StyleUiFactory.CompactFormFactory = (scrap, item, clickPoint) =>
+            {
+                // 收缩窗：期 4 简化版——隐藏原图 + 50×50 局部缩略窗
+                CreateCompactWindow((IScrap)scrap, (CCompactStyleItem)item);
+            };
+
+            StyleUiFactory.PicasaUploadBar = null; // 服务已停，不提供
+        }
+
+        private void CreateCompactWindow(IScrap scrap, CCompactStyleItem item)
+        {
+            // ponytail: 简化收缩窗（原图隐藏 + 居中缩略），完整收缩窗交互期 6 按需补
+            var compact = new Views.CompactWindow(scrap, item);
+            compact.Show(_ownerWindow);
+        }
+
+        /// <summary>面板窗 → IStyleItemEditDialog 适配。</summary>
+        private sealed class PanelDialogHost : StyleUiFactory.IStyleItemEditDialog
+        {
+            private readonly global::Avalonia.Controls.Window _window;
+            private readonly global::Avalonia.Controls.Window _owner;
+
+            public PanelDialogHost(global::Avalonia.Controls.Window window, global::Avalonia.Controls.Window owner)
+            {
+                _window = window;
+                _owner = owner;
+            }
+
+            public object EditedStyleItem => ((Views.Panels.StyleItemPanelBase)_window).EditedStyleItem;
+
+            public int ShowEditDialog()
+            {
+                var result = _window.ShowDialog<int?>(_owner).GetAwaiter().GetResult();
+                return result ?? 2;
+            }
+
+            public void Dispose() { }
+        }
+
+        /// <summary>裁剪窗 → ITrimDialog 适配。</summary>
+        private sealed class TrimDialogHost : StyleUiFactory.ITrimDialog
+        {
+            private readonly Views.TrimWindow _window;
+            private readonly global::Avalonia.Controls.Window _owner;
+
+            public TrimDialogHost(Views.TrimWindow window, global::Avalonia.Controls.Window owner)
+            {
+                _window = window;
+                _owner = owner;
+            }
+
+            public System.Drawing.Rectangle TrimRectangle => _window.TrimRectangle;
+
+            public int TrimLeft => _window.TrimLeft;
+
+            public int TrimTop => _window.TrimTop;
+
+            public int ShowTrimDialog()
+            {
+                var result = _window.ShowDialog<int?>(_owner).GetAwaiter().GetResult();
+                return result ?? 2;
+            }
+
+            public void Dispose() { }
         }
 
         // ===== IScrapBookHost =====
