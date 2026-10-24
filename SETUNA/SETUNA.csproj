@@ -60,9 +60,10 @@
     </None>
   </ItemGroup>
 
+
+
   <ItemGroup>
-    <EmbeddedResource Include="Plugins\libwebp_x86.dll" />
-    <EmbeddedResource Include="Plugins\libwebp_x64.dll" />
+    <ProjectReference Include="..\SETUNA.Core\SETUNA.Core.csproj" />
   </ItemGroup>
 
 </Project>

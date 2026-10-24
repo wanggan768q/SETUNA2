@@ -17,4 +17,9 @@
     <PackageReference Include="Svg" Version="3.4.7" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Plugins\libwebp_x64.dll" />
+    <EmbeddedResource Include="Plugins\libwebp_x86.dll" />
+  </ItemGroup>
+
 </Project>
