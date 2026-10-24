@@ -267,7 +267,7 @@ namespace SETUNA.Main.Option
                         var text = "「登记」，然后按目前的分配方式。";
                         hotkey.PointToScreen(new Point(0, 0));
                         toolTip1.Active = true;
-                        toolTip1.ToolTipTitle = "「" + keyItem.ParentStyle.StyleName + "」被分配。";
+                        toolTip1.ToolTipTitle = "「" + ((SETUNA.Main.Style.CStyle)keyItem.ParentStyle).StyleName + "」被分配。";
                         toolTip1.Show(text, label5);
                     }
                 }

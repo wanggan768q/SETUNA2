@@ -26,7 +26,7 @@ namespace SETUNA.Main
         // Token: 0x06000542 RID: 1346 RVA: 0x00024764 File Offset: 0x00022964
         protected override void OnAddItem(ToolStripMenuItem addmi)
         {
-            addmi.Click += _scrapbook.BindForm.RestoreScrap;
+            addmi.Click += SETUNA.Mainform.Instance.RestoreScrap;
         }
     }
 }
