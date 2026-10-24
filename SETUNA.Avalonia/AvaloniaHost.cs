@@ -203,7 +203,7 @@ namespace SETUNA.Avalonia
             }
         }
 
-        /// <summary>期 5 之前的占位：全屏截图热键（用平台服务抓主屏并立即贴出）。</summary>
+        /// <summary>全屏截图：抓快照 → 遮罩选区 → 贴图（对齐旧 CaptureForm 流程）。</summary>
         public void StartCapture()
         {
             if (!PlatformServices.IsRegistered)
@@ -212,9 +212,33 @@ namespace SETUNA.Avalonia
             }
             try
             {
-                var monitor = PlatformServices.Instance.ScreenCapture.GetMonitors()[0];
-                using var snapshot = PlatformServices.Instance.ScreenCapture.CaptureScreen(monitor.Bounds);
-                CreateScrapFromImage((GdiBitmap)snapshot.Clone());
+                var capture = PlatformServices.Instance.ScreenCapture;
+                var monitor = capture.GetMonitors()[0];
+                var snapshot = capture.CaptureScreen(monitor.Bounds);
+
+                // 遮罩窗在 UI 线程创建/显示；完成后回调建贴图
+                global::Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    var overlay = new Views.CaptureOverlayWindow(snapshot, monitor.Bounds.Location, monitor);
+                    overlay.CaptureCompleted = (clip, origin) =>
+                    {
+                        if (clip != null)
+                        {
+                            global::Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                            {
+                                var scrap = ScrapUiFactory.NewScrap();
+                                scrap.Image = clip;
+                                scrap.SetBounds(origin.X, origin.Y, clip.Width, clip.Height, 15);
+                                ScrapBook.AddScrapThenDo(scrap);
+                            });
+                        }
+                        else
+                        {
+                            snapshot.Dispose();
+                        }
+                    };
+                    overlay.Show();
+                });
             }
             catch (Exception ex)
             {
