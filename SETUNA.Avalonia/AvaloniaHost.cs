@@ -29,6 +29,8 @@ namespace SETUNA.Avalonia
 
         private Window _ownerWindow;
         private TrayIcon _trayIcon;
+        private AvaloniaClotheslineController _clotheslineController;
+        private bool _clotheslineModeActive;
 
         public bool Initialize(Window ownerWindow)
         {
@@ -67,7 +69,55 @@ namespace SETUNA.Avalonia
             var cacheManager = CacheManager.Instance;
             cacheManager.Init(ScrapBook);
 
+            SetupClothesline();
+
             return true;
+        }
+
+        // ===== 晾绳模式（期 5b） =====
+
+        private void SetupClothesline()
+        {
+            if (!Option.ClotheslineEnabled)
+            {
+                return;
+            }
+
+            _clotheslineController = new AvaloniaClotheslineController(
+                () => Option.ClotheslineRopePositionSaved
+                    ? Option.ClotheslineRopePosition
+                    : AvaloniaClotheslineController.CalculateDefaultRopePosition(false, PlatformServices.Instance.ScreenCapture.GetMonitors()[0].WorkingArea),
+                position =>
+                {
+                    Option.ClotheslineRopePosition = position;
+                    Option.ClotheslineRopePositionSaved = true;
+                    SaveOption();
+                },
+                () => Option.ClotheslineRopeOrientation);
+
+            _clotheslineController.ThumbnailDoubleClicked += scrap =>
+            {
+                scrap.SetClotheslineHanging(false);
+            };
+
+            // 贴图增删 → 绳子集合同步
+            ScrapBook.ScrapAdded += (s, e) =>
+            {
+                if (_clotheslineModeActive && e.scrap != null && !e.scrap.IsClotheslineHanging)
+                {
+                    e.scrap.SetClotheslineHanging(true);
+                }
+            };
+            ScrapBook.ScrapRemoved += (s, e) =>
+            {
+                _clotheslineController?.RemoveScrap(e.scrap);
+            };
+
+            if (Option.ClotheslineEnabled)
+            {
+                _clotheslineModeActive = true;
+                _clotheslineController.Show();
+            }
         }
 
         // ===== 样式编辑面板注册（期 4） =====
@@ -212,6 +262,7 @@ namespace SETUNA.Avalonia
             }
             try
             {
+                _clotheslineController?.SetCapturePaused(true);
                 var capture = PlatformServices.Instance.ScreenCapture;
                 var monitor = capture.GetMonitors()[0];
                 var snapshot = capture.CaptureScreen(monitor.Bounds);
@@ -220,6 +271,7 @@ namespace SETUNA.Avalonia
                 global::Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                 {
                     var overlay = new Views.CaptureOverlayWindow(snapshot, monitor.Bounds.Location, monitor);
+                    overlay.Closed += (s, e) => _clotheslineController?.SetCapturePaused(false);
                     overlay.CaptureCompleted = (clip, origin) =>
                     {
                         if (clip != null)
