@@ -1128,4 +1128,78 @@ namespace SETUNATests
     public class CacheItemAccessForTest : CacheItem
     {
     }
+
+    [TestClass]
+    [SupportedOSPlatform("windows")]
+    public class ClotheslineOrientationTests
+    {
+        [TestMethod]
+        public void ResolveVertical_AutoOnLandscapeWorkArea_IsFalse()
+        {
+            var wa = new Rectangle(0, 0, 1920, 1032);
+            Assert.IsFalse(ClotheslineController.ResolveVertical(ClotheslineRopeOrientation.Auto, wa));
+        }
+
+        [TestMethod]
+        public void ResolveVertical_AutoOnPortraitWorkArea_IsTrue()
+        {
+            // 负坐标竖屏（旋转显示器）
+            var wa = new Rectangle(-1080, 0, 1080, 1920);
+            Assert.IsTrue(ClotheslineController.ResolveVertical(ClotheslineRopeOrientation.Auto, wa));
+        }
+
+        [TestMethod]
+        public void ResolveVertical_ExplicitValues_OverrideWorkArea()
+        {
+            var wa = new Rectangle(0, 0, 1920, 1032);
+            Assert.IsFalse(ClotheslineController.ResolveVertical(ClotheslineRopeOrientation.Horizontal, wa));
+            Assert.IsTrue(ClotheslineController.ResolveVertical(ClotheslineRopeOrientation.Vertical, wa));
+        }
+
+        [TestMethod]
+        public void ResolveVertical_AutoSquareWorkArea_IsFalse()
+        {
+            // 正方形工作区按横（Height > Width 严格判定）
+            var wa = new Rectangle(0, 0, 1000, 1000);
+            Assert.IsFalse(ClotheslineController.ResolveVertical(ClotheslineRopeOrientation.Auto, wa));
+        }
+
+        [TestMethod]
+        public void CalculateDefaultRopePosition_Horizontal_MatchesCurrentTopLeft()
+        {
+            var wa = new Rectangle(0, 0, 1920, 1032);
+            var p = ClotheslineController.CalculateDefaultRopePosition(false, wa);
+            Assert.AreEqual(new Point(100, 8), p);
+        }
+
+        [TestMethod]
+        public void CalculateDefaultRopePosition_Vertical_RightEdgeCentered()
+        {
+            var wa = new Rectangle(0, 0, 1920, 1032);
+            var p = ClotheslineController.CalculateDefaultRopePosition(true, wa);
+            // 右边缘留 8px 间距，垂直居中
+            Assert.AreEqual(wa.Right - 60 - 8, p.X);
+            Assert.AreEqual(wa.Y + (wa.Height - 200) / 2, p.Y);
+        }
+
+        [TestMethod]
+        public void CalculateDefaultRopePosition_Vertical_NegativeOriginWorkArea_StaysInside()
+        {
+            var wa = new Rectangle(-1080, 0, 1080, 1920);
+            var p = ClotheslineController.CalculateDefaultRopePosition(true, wa);
+            Assert.IsTrue(wa.Contains(new Rectangle(p, new Size(60, 200))));
+        }
+
+        [TestMethod]
+        public void SetunaOption_OrientationRoundTrip_PreservesValue()
+        {
+            var so = new SetunaOption();
+            Assert.AreEqual(ClotheslineRopeOrientation.Auto, so.ClotheslineRopeOrientation); // 默认 Auto
+            so.ClotheslineRopeOrientation = ClotheslineRopeOrientation.Vertical;
+            var clone = (SetunaOption)so.Clone();
+            Assert.AreEqual(ClotheslineRopeOrientation.Vertical, clone.ClotheslineRopeOrientation);
+            clone.ClotheslineRopeOrientation = ClotheslineRopeOrientation.Horizontal;
+            Assert.AreEqual(ClotheslineRopeOrientation.Vertical, so.ClotheslineRopeOrientation); // 隔离
+        }
+    }
 }
