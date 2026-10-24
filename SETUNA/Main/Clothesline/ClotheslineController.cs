@@ -26,6 +26,8 @@ namespace SETUNA.Main.Clothesline
 
         private readonly Func<Point> _getRopeInitialPosition;
         private readonly Action<Point> _ropePositionChanged;
+        private Func<ClotheslineRopeOrientation> _getOrientationSource;
+        private bool _ropeVertical;
 
         private readonly List<ClotheslineItem> _items = new List<ClotheslineItem>();
         private ClotheslineForm _ropeForm;
@@ -45,10 +47,36 @@ namespace SETUNA.Main.Clothesline
         /// <summary>预览显示/关闭变化。</summary>
         public event Action<bool> PreviewVisibilityChanged;
 
-        public ClotheslineController(Func<Point> getRopeInitialPosition, Action<Point> ropePositionChanged)
+        /// <summary>绳窗当前方向（宿主断言与测试用）。</summary>
+        public bool IsRopeVertical => _ropeVertical;
+
+        public ClotheslineController(
+            Func<Point> getRopeInitialPosition,
+            Action<Point> ropePositionChanged,
+            Func<ClotheslineRopeOrientation> getOrientation = null)
         {
             _getRopeInitialPosition = getRopeInitialPosition ?? (() => Screen.PrimaryScreen.WorkingArea.Location);
             _ropePositionChanged = ropePositionChanged;
+            _getOrientationSource = getOrientation;
+        }
+
+        /// <summary>测试用：更换方向设置源。</summary>
+        public void SetOrientationSource(Func<ClotheslineRopeOrientation> getOrientation)
+        {
+            _getOrientationSource = getOrientation;
+        }
+
+        private ClotheslineRopeOrientation CurrentOrientation()
+        {
+            return _getOrientationSource != null ? _getOrientationSource() : ClotheslineRopeOrientation.Auto;
+        }
+
+        /// <summary>按当前设置与绳窗所在屏幕重解析方向并立即生效（绳窗未建时仅记标志，EnsureRopeForm 再应用）。</summary>
+        public void RefreshOrientation()
+        {
+            var workArea = _ropeForm != null ? Screen.FromControl(_ropeForm).WorkingArea : Screen.PrimaryScreen.WorkingArea;
+            _ropeVertical = ResolveVertical(CurrentOrientation(), workArea);
+            _ropeForm?.SetOrientation(_ropeVertical);
         }
 
         /// <summary>预览定位模式（宿主从 SetunaOption 注入，默认显示器居中）。</summary>
@@ -300,6 +328,8 @@ namespace SETUNA.Main.Clothesline
             if (_ropeForm == null)
             {
                 _ropeForm = new ClotheslineForm { Location = _getRopeInitialPosition() };
+                _ropeVertical = ResolveVertical(CurrentOrientation(), Screen.FromControl(_ropeForm).WorkingArea);
+                _ropeForm.SetOrientation(_ropeVertical);
                 _ropeForm.ThumbnailDoubleClicked += RopeForm_ThumbnailDoubleClicked;
                 _ropeForm.DragFinished += RopeForm_DragFinished;
                 SystemEvents.DisplaySettingsChanged += DisplaySettingsChanged;

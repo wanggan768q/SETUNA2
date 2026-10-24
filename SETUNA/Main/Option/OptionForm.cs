@@ -86,6 +86,9 @@ namespace SETUNA.Main.Option
             radioButton1_clotheslinePreview.Checked = _so.ClotheslinePreviewLocation == ClotheslinePreviewLocation.MonitorCenter;
             radioButton2_clotheslinePreview.Checked = _so.ClotheslinePreviewLocation == ClotheslinePreviewLocation.NearThumbnail;
             radioButton3_clotheslinePreview.Checked = _so.ClotheslinePreviewLocation == ClotheslinePreviewLocation.OriginalLocation;
+            radioButton1_clotheslineOrientation.Checked = _so.ClotheslineRopeOrientation == ClotheslineRopeOrientation.Auto;
+            radioButton2_clotheslineOrientation.Checked = _so.ClotheslineRopeOrientation == ClotheslineRopeOrientation.Horizontal;
+            radioButton3_clotheslineOrientation.Checked = _so.ClotheslineRopeOrientation == ClotheslineRopeOrientation.Vertical;
         }
 
         // Token: 0x060002D5 RID: 725 RVA: 0x00013908 File Offset: 0x00011B08
@@ -175,6 +178,19 @@ namespace SETUNA.Main.Option
             else
             {
                 _so.ClotheslinePreviewLocation = ClotheslinePreviewLocation.OriginalLocation;
+            }
+
+            if (radioButton1_clotheslineOrientation.Checked)
+            {
+                _so.ClotheslineRopeOrientation = ClotheslineRopeOrientation.Auto;
+            }
+            else if (radioButton2_clotheslineOrientation.Checked)
+            {
+                _so.ClotheslineRopeOrientation = ClotheslineRopeOrientation.Horizontal;
+            }
+            else
+            {
+                _so.ClotheslineRopeOrientation = ClotheslineRopeOrientation.Vertical;
             }
 
             foreach (var item in Mainform.Instance.scrapBook)

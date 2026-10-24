@@ -2,6 +2,7 @@ using System;
 using System.Drawing;
 using System.IO;
 using System.Runtime.Versioning;
+using System.Windows.Forms;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json;
 using SETUNA;
@@ -13,6 +14,15 @@ using SETUNA.Main.StyleItems;
 
 namespace SETUNATests
 {
+    /// <summary>晾绳测试共享辅助：带完整消息循环的 STA 运行器（防 DrawToBitmap/OnPaint 死锁）。</summary>
+    internal static class ClotheslineTestHelpers
+    {
+        public static void RunOnStaWithMessagePump(Action action)
+        {
+            ClotheslineLifecycleTests.RunOnStaWithMessagePump(action);
+        }
+    }
+
     [TestClass]
     [SupportedOSPlatform("windows")]
     public class ClotheslineTests
@@ -545,7 +555,7 @@ namespace SETUNATests
         /// ScrapBase.OnPaint 解引用 Mainform.Instance.optSetuna，须先提供 Mainform 实例，
         /// 否则首帧绘制 NRE 会让消息循环静默挂死。
         /// </summary>
-        private static void RunOnStaWithMessagePump(Action action)
+        internal static void RunOnStaWithMessagePump(Action action)
         {
             var failure = (Exception)null;
             var done = new System.Threading.ManualResetEvent(false);
@@ -1248,6 +1258,58 @@ namespace SETUNATests
             Assert.AreEqual(1, ClotheslineForm.FindItemIndexAt(rects, new Point(50, 50), 70, vertical: true));
             // 间隙不命中（条目0 下方 80..100 之间）
             Assert.AreEqual(-1, ClotheslineForm.FindItemIndexAt(rects, new Point(50, 95), 0, vertical: true));
+        }
+
+        [TestMethod]
+        public void RefreshOrientation_UpdatesFormVerticalFlag()
+        {
+            ClotheslineTestHelpers.RunOnStaWithMessagePump(() =>
+            {
+                var mainform = new Mainform();
+                ClotheslineController controller = null;
+                try
+                {
+                    controller = new ClotheslineController(
+                        () => new Point(100, 8),
+                        _ => { },
+                        () => ClotheslineRopeOrientation.Vertical);
+                    controller.Show();
+                    Assert.IsTrue(controller.IsRopeVertical);
+
+                    controller.SetOrientationSource(() => ClotheslineRopeOrientation.Horizontal);
+                    controller.RefreshOrientation();
+                    Assert.IsFalse(controller.IsRopeVertical);
+                }
+                finally
+                {
+                    controller?.Dispose();
+                }
+            });
+        }
+
+        [TestMethod]
+        public void RefreshOrientation_AutoResolvesByWorkArea()
+        {
+            ClotheslineTestHelpers.RunOnStaWithMessagePump(() =>
+            {
+                var mainform = new Mainform();
+                ClotheslineController controller = null;
+                try
+                {
+                    // 本机主屏宽>高（横屏环境），Auto 应解析为横向
+                    controller = new ClotheslineController(
+                        () => new Point(100, 8),
+                        _ => { },
+                        () => ClotheslineRopeOrientation.Auto);
+                    controller.Show();
+                    var expected = Screen.PrimaryScreen.WorkingArea.Height > Screen.PrimaryScreen.WorkingArea.Width;
+                    Assert.AreEqual(expected, controller.IsRopeVertical);
+                }
+                finally
+                {
+                    controller?.Dispose();
+                }
+            });
         }
     }
 }

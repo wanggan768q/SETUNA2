@@ -129,6 +129,10 @@
             this.radioButton2_clotheslinePreview = new System.Windows.Forms.RadioButton();
             this.radioButton3_clotheslinePreview = new System.Windows.Forms.RadioButton();
             this.label20 = new System.Windows.Forms.Label();
+            this.label21 = new System.Windows.Forms.Label();
+            this.radioButton1_clotheslineOrientation = new System.Windows.Forms.RadioButton();
+            this.radioButton2_clotheslineOrientation = new System.Windows.Forms.RadioButton();
+            this.radioButton3_clotheslineOrientation = new System.Windows.Forms.RadioButton();
             this.panel1 = new System.Windows.Forms.Panel();
             this.lblMenuMisc = new System.Windows.Forms.Label();
             this.lblMenuStyle = new System.Windows.Forms.Label();
@@ -1498,11 +1502,15 @@
             this.groupBox17.Controls.Add(this.radioButton1_clotheslinePreview);
             this.groupBox17.Controls.Add(this.radioButton2_clotheslinePreview);
             this.groupBox17.Controls.Add(this.radioButton3_clotheslinePreview);
+            this.groupBox17.Controls.Add(this.label21);
+            this.groupBox17.Controls.Add(this.radioButton1_clotheslineOrientation);
+            this.groupBox17.Controls.Add(this.radioButton2_clotheslineOrientation);
+            this.groupBox17.Controls.Add(this.radioButton3_clotheslineOrientation);
             this.groupBox17.Location = new System.Drawing.Point(13, 462);
             this.groupBox17.Margin = new System.Windows.Forms.Padding(8, 6, 8, 6);
             this.groupBox17.Name = "groupBox17";
             this.groupBox17.Padding = new System.Windows.Forms.Padding(8, 6, 8, 6);
-            this.groupBox17.Size = new System.Drawing.Size(1076, 158);
+            this.groupBox17.Size = new System.Drawing.Size(1076, 206);
             this.groupBox17.TabIndex = 15;
             this.groupBox17.TabStop = false;
             this.groupBox17.Text = "照片晾绳";
@@ -1566,6 +1574,54 @@
             this.radioButton3_clotheslinePreview.Text = "截图原位置";
             this.toolTip1.SetToolTip(this.radioButton3_clotheslinePreview, "预览显示在截图原位置");
             this.radioButton3_clotheslinePreview.UseVisualStyleBackColor = true;
+            //
+            // label21
+            //
+            this.label21.AutoSize = true;
+            this.label21.Location = new System.Drawing.Point(79, 146);
+            this.label21.Margin = new System.Windows.Forms.Padding(8, 0, 8, 0);
+            this.label21.Name = "label21";
+            this.label21.Size = new System.Drawing.Size(223, 30);
+            this.label21.TabIndex = 5;
+            this.label21.Text = "绳子方向∶";
+            //
+            // radioButton1_clotheslineOrientation
+            //
+            this.radioButton1_clotheslineOrientation.AutoSize = true;
+            this.radioButton1_clotheslineOrientation.Checked = true;
+            this.radioButton1_clotheslineOrientation.Location = new System.Drawing.Point(328, 142);
+            this.radioButton1_clotheslineOrientation.Margin = new System.Windows.Forms.Padding(8, 6, 8, 6);
+            this.radioButton1_clotheslineOrientation.Name = "radioButton1_clotheslineOrientation";
+            this.radioButton1_clotheslineOrientation.Size = new System.Drawing.Size(180, 34);
+            this.radioButton1_clotheslineOrientation.TabIndex = 6;
+            this.radioButton1_clotheslineOrientation.TabStop = true;
+            this.radioButton1_clotheslineOrientation.Text = "自动";
+            this.toolTip1.SetToolTip(this.radioButton1_clotheslineOrientation, "宽屏横绳、竖屏竖绳");
+            this.radioButton1_clotheslineOrientation.UseVisualStyleBackColor = true;
+            //
+            // radioButton2_clotheslineOrientation
+            //
+            this.radioButton2_clotheslineOrientation.AutoSize = true;
+            this.radioButton2_clotheslineOrientation.Location = new System.Drawing.Point(540, 142);
+            this.radioButton2_clotheslineOrientation.Margin = new System.Windows.Forms.Padding(8, 6, 8, 6);
+            this.radioButton2_clotheslineOrientation.Name = "radioButton2_clotheslineOrientation";
+            this.radioButton2_clotheslineOrientation.Size = new System.Drawing.Size(180, 34);
+            this.radioButton2_clotheslineOrientation.TabIndex = 7;
+            this.radioButton2_clotheslineOrientation.Text = "横向";
+            this.toolTip1.SetToolTip(this.radioButton2_clotheslineOrientation, "照片单行从左到右，最新在右");
+            this.radioButton2_clotheslineOrientation.UseVisualStyleBackColor = true;
+            //
+            // radioButton3_clotheslineOrientation
+            //
+            this.radioButton3_clotheslineOrientation.AutoSize = true;
+            this.radioButton3_clotheslineOrientation.Location = new System.Drawing.Point(752, 142);
+            this.radioButton3_clotheslineOrientation.Margin = new System.Windows.Forms.Padding(8, 6, 8, 6);
+            this.radioButton3_clotheslineOrientation.Name = "radioButton3_clotheslineOrientation";
+            this.radioButton3_clotheslineOrientation.Size = new System.Drawing.Size(180, 34);
+            this.radioButton3_clotheslineOrientation.TabIndex = 8;
+            this.radioButton3_clotheslineOrientation.Text = "竖向";
+            this.toolTip1.SetToolTip(this.radioButton3_clotheslineOrientation, "照片单列从上到下，最新在下");
+            this.radioButton3_clotheslineOrientation.UseVisualStyleBackColor = true;
             //
             // panel1
             // 
@@ -2072,5 +2128,9 @@
         private System.Windows.Forms.RadioButton radioButton2_clotheslinePreview;
         private System.Windows.Forms.RadioButton radioButton3_clotheslinePreview;
         private System.Windows.Forms.Label label20;
+        private System.Windows.Forms.Label label21;
+        private System.Windows.Forms.RadioButton radioButton1_clotheslineOrientation;
+        private System.Windows.Forms.RadioButton radioButton2_clotheslineOrientation;
+        private System.Windows.Forms.RadioButton radioButton3_clotheslineOrientation;
     }
 }

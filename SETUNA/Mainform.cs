@@ -384,10 +384,11 @@ namespace SETUNA
             switch (ClotheslineController.DecideModeAction(enabled, clotheslineModeActive))
             {
                 case ClotheslineModeAction.None:
-                    // 重复应用设置：不重新挂回已取下的照片（幂等），仅同步预览模式
+                    // 重复应用设置：不重新挂回已取下的照片（幂等），仅同步预览模式与绳子方向
                     if (enabled && clotheslineController != null)
                     {
                         clotheslineController.PreviewMode = optSetuna.ClotheslinePreviewLocation;
+                        clotheslineController.RefreshOrientation();
                     }
                     return;
                 case ClotheslineModeAction.Enable:
@@ -490,14 +491,17 @@ namespace SETUNA
                 {
                     return optSetuna.ClotheslineRopePositionSaved
                         ? optSetuna.ClotheslineRopePosition
-                        : new Point(Screen.PrimaryScreen.WorkingArea.X + 100, Screen.PrimaryScreen.WorkingArea.Top + 8);
+                        : ClotheslineController.CalculateDefaultRopePosition(
+                            ClotheslineController.ResolveVertical(optSetuna.ClotheslineRopeOrientation, Screen.PrimaryScreen.WorkingArea),
+                            Screen.PrimaryScreen.WorkingArea);
                 },
                 position =>
                 {
                     optSetuna.ClotheslineRopePosition = position;
                     optSetuna.ClotheslineRopePositionSaved = true;
                     SaveOption();
-                });
+                },
+                () => optSetuna.ClotheslineRopeOrientation);
 
             // 挂起/取下状态变化 → 同步绳子集合（构造函数已订阅 ScrapAdded/ScrapRemoved）
 
