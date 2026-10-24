@@ -354,8 +354,8 @@ namespace SETUNATests
         {
             var rects = new List<Rectangle> { new Rectangle(16, 32, 100, 80), new Rectangle(128, 32, 100, 80) };
 
-            Assert.AreEqual(0, ClotheslineForm.FindItemIndexAt(rects, new Point(50, 50), 0));
-            Assert.AreEqual(1, ClotheslineForm.FindItemIndexAt(rects, new Point(200, 50), 0));
+            Assert.AreEqual(0, ClotheslineForm.FindItemIndexAt(rects, new Point(50, 50), 0, vertical: false));
+            Assert.AreEqual(1, ClotheslineForm.FindItemIndexAt(rects, new Point(200, 50), 0, vertical: false));
         }
 
         [TestMethod]
@@ -364,9 +364,9 @@ namespace SETUNATests
             var rects = new List<Rectangle> { new Rectangle(16, 32, 100, 80) };
 
             // 间隙（条目右侧）
-            Assert.AreEqual(-1, ClotheslineForm.FindItemIndexAt(rects, new Point(120, 50), 0));
+            Assert.AreEqual(-1, ClotheslineForm.FindItemIndexAt(rects, new Point(120, 50), 0, vertical: false));
             // 夹子（照片上方绳线区域）
-            Assert.AreEqual(-1, ClotheslineForm.FindItemIndexAt(rects, new Point(66, 10), 0));
+            Assert.AreEqual(-1, ClotheslineForm.FindItemIndexAt(rects, new Point(66, 10), 0, vertical: false));
         }
 
         [TestMethod]
@@ -375,9 +375,9 @@ namespace SETUNATests
             var rects = new List<Rectangle> { new Rectangle(16, 32, 100, 80), new Rectangle(128, 32, 100, 80) };
 
             // 滚动偏移 100 后：条目0 移出可视区左侧，客户区 x=50 落在条目1（128-100=28..128）
-            Assert.AreEqual(1, ClotheslineForm.FindItemIndexAt(rects, new Point(50, 50), 100));
+            Assert.AreEqual(1, ClotheslineForm.FindItemIndexAt(rects, new Point(50, 50), 100, vertical: false));
             // 条目0 在客户区坐标 -84..16
-            Assert.AreEqual(0, ClotheslineForm.FindItemIndexAt(rects, new Point(0, 50), 100));
+            Assert.AreEqual(0, ClotheslineForm.FindItemIndexAt(rects, new Point(0, 50), 100, vertical: false));
         }
 
         // —— 自动关闭判定 ——
@@ -473,7 +473,7 @@ namespace SETUNATests
             // 绘制与命中必须用同一换算：rect.X - scrollOffset。
             // 命中：滚动 120 后条目1（原 X=208）的客户区范围 88..188
             var rects = new List<Rectangle> { new Rectangle(16, 32, 180, 140), new Rectangle(208, 32, 180, 140) };
-            var hitIndex = ClotheslineForm.FindItemIndexAt(rects, new Point(100, 50), 120);
+            var hitIndex = ClotheslineForm.FindItemIndexAt(rects, new Point(100, 50), 120, vertical: false);
             Assert.AreEqual(1, hitIndex);
 
             // 绘制同一矩形应用偏移后的位置 = 命中判定的矩形位置
@@ -1200,6 +1200,54 @@ namespace SETUNATests
             Assert.AreEqual(ClotheslineRopeOrientation.Vertical, clone.ClotheslineRopeOrientation);
             clone.ClotheslineRopeOrientation = ClotheslineRopeOrientation.Horizontal;
             Assert.AreEqual(ClotheslineRopeOrientation.Vertical, so.ClotheslineRopeOrientation); // 隔离
+        }
+
+        [TestMethod]
+        public void LayoutItemRects_Vertical_StacksTopToBottomLatestLast()
+        {
+            var items = new List<ClotheslineItem>();
+            var bmp1 = new Bitmap(100, 50);   // 横图
+            var bmp2 = new Bitmap(50, 100);   // 竖图
+            items.Add(new ClotheslineItem(null, bmp1));
+            items.Add(new ClotheslineItem(null, bmp2));
+            var rects = ClotheslineForm.LayoutItemRects(items, vertical: true);
+            Assert.AreEqual(2, rects.Count);
+            // 从上往下：第二个条目（最新）在更下方
+            Assert.IsTrue(rects[1].Y > rects[0].Y);
+            // X 全部对齐（同一列）
+            Assert.AreEqual(rects[0].X, rects[1].X);
+            bmp1.Dispose(); bmp2.Dispose();
+        }
+
+        [TestMethod]
+        public void LayoutItemRects_Horizontal_Regression_RowLeftToRight()
+        {
+            var items = new List<ClotheslineItem>();
+            var bmp1 = new Bitmap(100, 50);
+            var bmp2 = new Bitmap(100, 50);
+            items.Add(new ClotheslineItem(null, bmp1));
+            items.Add(new ClotheslineItem(null, bmp2));
+            var rects = ClotheslineForm.LayoutItemRects(items, vertical: false);
+            Assert.AreEqual(2, rects.Count);
+            Assert.IsTrue(rects[1].X > rects[0].X);   // 最新在右
+            Assert.AreEqual(rects[0].Y, rects[1].Y);  // 同一行
+            bmp1.Dispose(); bmp2.Dispose();
+        }
+
+        [TestMethod]
+        public void FindItemIndexAt_VerticalAppliesScrollOffset()
+        {
+            var rects = new List<Rectangle>
+            {
+                new Rectangle(20, 30, 100, 50),
+                new Rectangle(20, 100, 100, 50)
+            };
+            // 无偏移：命中第一个
+            Assert.AreEqual(0, ClotheslineForm.FindItemIndexAt(rects, new Point(50, 50), 0, vertical: true));
+            // Y 偏移 70：条目1（原 Y 100..150）换算后 30..80，点 (50,50) 命中条目1
+            Assert.AreEqual(1, ClotheslineForm.FindItemIndexAt(rects, new Point(50, 50), 70, vertical: true));
+            // 间隙不命中（条目0 下方 80..100 之间）
+            Assert.AreEqual(-1, ClotheslineForm.FindItemIndexAt(rects, new Point(50, 95), 0, vertical: true));
         }
     }
 }
