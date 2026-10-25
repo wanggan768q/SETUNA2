@@ -81,8 +81,10 @@ namespace SETUNA.Avalonia
             };
             HostCommands.RequestShutdown = () =>
             {
-                SaveOption();
-                Environment.Exit(0);
+                // 优雅关闭：ShutdownRequested 里统一 SaveOption（Environment.Exit 会跳过）
+                global::Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                    (global::Avalonia.Application.Current.ApplicationLifetime as global::Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime)
+                        ?.MainWindow?.Close());
             };
 
             RegisterStylePanels();
