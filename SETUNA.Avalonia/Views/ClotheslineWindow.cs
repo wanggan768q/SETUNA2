@@ -122,7 +122,7 @@ namespace SETUNA.Avalonia.Views
                 {
                     _scrollOffset = Math.Max(0, Math.Min(rect.Y - ContentPadding, max));
                 }
-                else if (rect.Bottom - _scrollOffset > (int)Height - ContentPadding)
+                else if (rect.Bottom - _scrollOffset > ClientMainLength() - ContentPadding)
                 {
                     _scrollOffset = Math.Max(0, Math.Min(rect.Bottom - (int)Height + ContentPadding, max));
                 }
@@ -133,7 +133,7 @@ namespace SETUNA.Avalonia.Views
                 {
                     _scrollOffset = Math.Max(0, Math.Min(rect.X - ContentPadding, max));
                 }
-                else if (rect.Right - _scrollOffset > (int)Width - ContentPadding)
+                else if (rect.Right - _scrollOffset > ClientMainLength() - ContentPadding)
                 {
                     _scrollOffset = Math.Max(0, Math.Min(rect.Right - (int)Width + ContentPadding, max));
                 }
@@ -200,9 +200,16 @@ namespace SETUNA.Avalonia.Views
 
         // ===== 布局（几何与旧版 ClotheslineForm.LayoutItemRects 一致） =====
 
+        private int ClientMainLength()
+        {
+            var scale = RenderScaling > 0 ? RenderScaling : 1.0;
+            return (int)Math.Round((_vertical ? Height : Width) * scale);
+        }
+
         private int MaxScrollOffset()
         {
-            var clientMain = _vertical ? (int)Height : (int)Width;
+            var scale = RenderScaling > 0 ? RenderScaling : 1.0;
+            var clientMain = (int)Math.Round((_vertical ? Height : Width) * scale);
             var max = _contentLength - clientMain;
             return max > 0 ? max : 0;
         }
@@ -240,8 +247,10 @@ namespace SETUNA.Avalonia.Views
             var newX = Math.Max(work.Left, Math.Min(Position.X, work.Right - width - (_vertical ? RightMargin : 0)));
             var newY = Math.Max(work.Top, Math.Min(Position.Y, work.Bottom - height - (_vertical ? 0 : BottomMargin)));
             Position = new PixelPoint(newX, newY);
-            Width = width;
-            Height = height;
+            // 内容尺寸按物理像素计算 → 窗口 DIP = px / 缩放
+            var scale = RenderScaling > 0 ? RenderScaling : 1.0;
+            Width = width / scale;
+            Height = height / scale;
         }
 
         internal static List<DrawingRect> LayoutItemRects(List<AvaloniaClotheslineItem> items, bool vertical)
@@ -356,7 +365,7 @@ namespace SETUNA.Avalonia.Views
                 if (_vertical)
                 {
                     ry = rect.Y - _scrollOffset;
-                    if (rect.Bottom - _scrollOffset < 0 || ry > Height)
+                    if (rect.Bottom - _scrollOffset < 0 || ry > ClientMainLength())
                     {
                         continue;
                     }
@@ -367,7 +376,7 @@ namespace SETUNA.Avalonia.Views
                 else
                 {
                     rx = rect.X - _scrollOffset;
-                    if (rect.Right - _scrollOffset < 0 || rx > Width)
+                    if (rect.Right - _scrollOffset < 0 || rx > ClientMainLength())
                     {
                         continue;
                     }
@@ -376,7 +385,9 @@ namespace SETUNA.Avalonia.Views
                     context.FillRectangle(clipBrush, new Rect(rx + rect.Width / 2.0 - ClipWidth / 2.0, RopeY - 2, ClipWidth, ClipHeight));
                 }
 
-                var avaloniaRect = new Rect(rx, ry, rect.Width, rect.Height);
+                // 物理像素 rect → 绘制坐标系（DIP）
+                var drawScale = RenderScaling > 0 ? RenderScaling : 1.0;
+                var avaloniaRect = new Rect(rx / drawScale, ry / drawScale, rect.Width / drawScale, rect.Height / drawScale);
                 context.DrawRectangle(null, framePen, avaloniaRect);
 
                 var thumbnail = _items[i].Thumbnail;

@@ -246,19 +246,28 @@ namespace SETUNA.Avalonia.Views
 
         public DrawingPoint Location { get => Position.ToDrawingPoint(); set => Position = value.ToPixelPoint(); }
         public DrawingPoint TargetLocation { get => Location; set { _ptTarget = value; _blTargetSet = true; StartOpacityTimerIfNeeded(); } }
-        public DrawingSize Size { get => new DrawingSize((int)Width, (int)Height); set { Width = value.Width; Height = value.Height; } }
+
+        /// <summary>当前屏幕 DPI 缩放（Width/Height 是 DIP，IScrap 几何契约是物理像素，边界换算）。</summary>
+        private double ScaleFactor => RenderScaling > 0 ? RenderScaling : 1.0;
+
+        public DrawingSize Size
+        {
+            get => new DrawingSize((int)Math.Round(Width * ScaleFactor), (int)Math.Round(Height * ScaleFactor));
+            set { Width = value.Width / ScaleFactor; Height = value.Height / ScaleFactor; }
+        }
+
         public DrawingSize ClientSize { get => Size; set => Size = value; }
         int IScrap.Left { get => Location.X; set => Location = new DrawingPoint(value, Location.Y); }
         int IScrap.Top { get => Location.Y; set => Location = new DrawingPoint(Location.X, value); }
-        int IScrap.Width { get => (int)Width; }
-        int IScrap.Height { get => (int)Height; }
+        int IScrap.Width { get => (int)Math.Round(Width * ScaleFactor); }
+        int IScrap.Height { get => (int)Math.Round(Height * ScaleFactor); }
         public int Scale { get => _scale; set => _scale = value; }
 
         void IScrap.SetBounds(int x, int y, int width, int height, int specified)
         {
             Position = new PixelPoint(x, y);
-            Width = width;
-            Height = height;
+            Width = width / ScaleFactor;
+            Height = height / ScaleFactor;
         }
 
         bool IScrap.Visible { get => _visibleFlag; set => SetVisibleCore(value); }
@@ -310,8 +319,9 @@ namespace SETUNA.Avalonia.Views
                     stream.Position = 0;
                     _viewBitmap = new Bitmap(stream);
                     _imageControl.Source = _viewBitmap;
-                    Width = value.Width;
-                    Height = value.Height;
+                    // 图像是物理像素，窗口尺寸是 DIP：换算保证 1:1 显示不变形
+                    Width = value.Width / ScaleFactor;
+                    Height = value.Height / ScaleFactor;
                 }
                 ScrapImageChangedEvent?.Invoke(this, new ScrapEventArgs(this));
             }
@@ -319,7 +329,7 @@ namespace SETUNA.Avalonia.Views
 
         public DrawingImage GetViewImage()
         {
-            var bmp = new System.Drawing.Bitmap((int)Width, (int)Height, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
+            var bmp = new System.Drawing.Bitmap(IScrapWidth(), IScrapHeight(), System.Drawing.Imaging.PixelFormat.Format24bppRgb);
             using (var g = System.Drawing.Graphics.FromImage(bmp))
             {
                 g.Clear(DrawingColor.White);
@@ -330,6 +340,11 @@ namespace SETUNA.Avalonia.Views
             }
             return bmp;
         }
+
+        /// <summary>窗口物理像素宽/高（DIP × 缩放）。</summary>
+        private int IScrapWidth() => (int)Math.Round(Width * ScaleFactor);
+
+        private int IScrapHeight() => (int)Math.Round(Height * ScaleFactor);
 
         public string Name { get => _name; set => _name = value; }
         public DateTime DateTime { get => _datetime; set => _datetime = value; }
