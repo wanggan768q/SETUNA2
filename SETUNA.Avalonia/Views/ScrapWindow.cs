@@ -293,7 +293,21 @@ namespace SETUNA.Avalonia.Views
             Height = height / ScaleFactor;
         }
 
-        bool IScrap.Visible { get => _visibleFlag; set => SetVisibleCore(value); }
+        bool IScrap.Visible
+        {
+            get => _visibleFlag;
+            set
+            {
+                if (value)
+                {
+                    Show();
+                }
+                else
+                {
+                    Hide();
+                }
+            }
+        }
 
         public new void Show()
         {
@@ -454,12 +468,11 @@ namespace SETUNA.Avalonia.Views
             {
                 return;
             }
-            _isClotheslineHanging = hanging;
 
             if (hanging)
             {
-                SetVisibleCore(false);
-                base.Hide();
+                _isClotheslineHanging = true;
+                base.Hide(); // SetVisibleCore 拦截路径：期望状态已记在 _visibleFlag
             }
             else
             {
@@ -468,9 +481,7 @@ namespace SETUNA.Avalonia.Views
                 {
                     base.Show();
                 }
-                _isClotheslineHanging = true;
             }
-            _isClotheslineHanging = hanging;
 
             ClotheslineHangingChanged?.Invoke(this, new ScrapEventArgs(this));
 
