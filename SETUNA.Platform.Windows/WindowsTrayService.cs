@@ -75,6 +75,22 @@ namespace SETUNA.Platform.Windows
             return menuItem;
         }
 
+        public void RebuildMenu(TrayIconSpec spec)
+        {
+            if (_notifyIcon == null)
+            {
+                Initialize(spec);
+                return;
+            }
+
+            var menu = new System.Windows.Forms.ContextMenuStrip();
+            foreach (var item in spec.MenuItems ?? Array.Empty<TrayMenuItem>())
+            {
+                menu.Items.Add(BuildItem(item));
+            }
+            _notifyIcon.ContextMenuStrip = menu;
+        }
+
         public void ShowBalloon(string title, string message)
         {
             if (_notifyIcon == null)

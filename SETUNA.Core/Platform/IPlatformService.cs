@@ -78,6 +78,9 @@ namespace SETUNA.Core.Platform
     {
         void Initialize(TrayIconSpec spec);
 
+        /// <summary>重建托盘菜单（回收站/名单等动态内容变化后调用；spec.MenuItems 为新菜单树）。</summary>
+        void RebuildMenu(TrayIconSpec spec);
+
         void ShowBalloon(string title, string message);
 
         void SetToolTip(string text);
