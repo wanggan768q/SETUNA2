@@ -101,9 +101,18 @@ namespace SETUNA.Avalonia.Views
 
         // ===== 生命周期 =====
 
+        /// <summary>关闭预备标志：ScrapClose 流程处置完成后置位，此时才允许窗口真关闭
+        /// （对齐旧 ScrapBase.OnFormClosing 的 closePrepare + e.Cancel 语义）。</summary>
+        private bool _closePrepare;
+
         private void ScrapWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
-            // 对齐 ScrapBase.OnClosed → ScrapBook.ScrapClose 的回收站流转
+            if (_closePrepare)
+            {
+                return;
+            }
+            // 首次关闭请求：取消窗口关闭，走回收站流转（贴图存活仅隐藏，可恢复）
+            e.Cancel = true;
             _manager?.ScrapClose(this, new ScrapEventArgs(this));
         }
 
@@ -115,7 +124,13 @@ namespace SETUNA.Avalonia.Views
             if (props.IsLeftButtonPressed)
             {
                 _isDragging = true;
-                _dragStart = new PixelPoint((int)e.GetCurrentPoint(null).Position.X - Position.X, (int)e.GetCurrentPoint(null).Position.Y - Position.Y);
+                // 屏幕物理坐标 = 窗口物理位置 + 客户区 DIP × 缩放
+                var client = e.GetPosition(this);
+                var scale = ScaleFactor;
+                var screenPt = new PixelPoint(
+                    Position.X + (int)Math.Round(client.X * scale),
+                    Position.Y + (int)Math.Round(client.Y * scale));
+                _dragStart = screenPt - Position;
                 e.Pointer.Capture(_imageControl);
             }
             else if (props.IsRightButtonPressed)
@@ -130,7 +145,11 @@ namespace SETUNA.Avalonia.Views
             {
                 return;
             }
-            var screen = e.GetCurrentPoint(null).Position.ToPixelPoint();
+            var client = e.GetPosition(this);
+            var scale = ScaleFactor;
+            var screen = new PixelPoint(
+                Position.X + (int)Math.Round(client.X * scale),
+                Position.Y + (int)Math.Round(client.Y * scale));
             Position = new PixelPoint(screen.X - _dragStart.X, screen.Y - _dragStart.Y);
         }
 
@@ -365,7 +384,11 @@ namespace SETUNA.Avalonia.Views
         public new void Show()
         {
             SetVisibleCore(true);
-            base.Show();
+            // 挂起抑制（对齐旧 SetVisibleCore 拦截语义）：挂起中期望可见但不真显示
+            if (!_isClotheslineHanging)
+            {
+                base.Show();
+            }
         }
 
         public new void Hide()
@@ -508,6 +531,8 @@ namespace SETUNA.Avalonia.Views
 
         public void ScrapClose()
         {
+            // 回收站淘汰/清空路径：贴图真关闭（对齐旧 closePrepare 置位后 Close）
+            _closePrepare = true;
             Close();
         }
 

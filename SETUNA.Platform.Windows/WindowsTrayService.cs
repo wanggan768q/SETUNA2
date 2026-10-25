@@ -112,8 +112,12 @@ namespace SETUNA.Platform.Windows
 
         public void Dispose()
         {
-            _notifyIcon?.Dispose();
-            _notifyIcon = null;
+            if (_notifyIcon != null)
+            {
+                _notifyIcon.Icon?.Dispose();
+                _notifyIcon.Dispose();
+                _notifyIcon = null;
+            }
         }
     }
 }

@@ -23,6 +23,12 @@ namespace SETUNA.Main.StyleItems
         // Token: 0x060000C7 RID: 199 RVA: 0x00005738 File Offset: 0x00003938
         public override void Apply(ref IScrap scrap, Point clickpoint)
         {
+            // 保存对话框异步泵（UI 线程不能同步等待）：fire-and-forget，确认后文件落地
+            _ = SaveAsync(scrap);
+        }
+
+        private async System.Threading.Tasks.Task SaveAsync(IScrap scrap)
+        {
             Bitmap bitmap = null;
             Graphics graphics = null;
             var text = "";
@@ -46,10 +52,10 @@ namespace SETUNA.Main.StyleItems
                     graphics = Graphics.FromImage(bitmap);
                     graphics.DrawImage(scrap.Image, 0, 0, scrap.Image.Width, scrap.Image.Height);
                 }
-                var encoderParams = GetEncoderParams(ref scrap);
+                var encoderParams = await GetEncoderParamsAsync(scrap);
                 if (encoderParams != null)
                 {
-                    text = GetSavePath(ref scrap);
+                    text = GetSavePathAsync(scrap).GetAwaiter().GetResult();
                     SETUNA.Main.Style.HostCommands.ResumeLayerRefresh?.Invoke();
 
                     if (!(text == ""))
@@ -105,7 +111,7 @@ namespace SETUNA.Main.StyleItems
         }
 
         // Token: 0x060000C8 RID: 200 RVA: 0x000058B4 File Offset: 0x00003AB4
-        protected string GetSavePath(ref IScrap scrap)
+        protected async System.Threading.Tasks.Task<string> GetSavePathAsync(IScrap scrap)
         {
             var imageCodecInfo = GetImageCodecInfo();
             var flag = false;
@@ -167,7 +173,7 @@ namespace SETUNA.Main.StyleItems
                             }
                         case CImageStyleItem.EnumDupliType.Select:
                             {
-                                var dialogResult = SETUNA.Main.Style.StyleUiFactory.MessageBox("相同的文件名已存在。\n覆盖？", "SETUNA", 0x103);
+                                var dialogResult = await SETUNA.Main.Style.StyleUiFactory.MessageBox("相同的文件名已存在。\n覆盖？", "SETUNA", 0x103);
                                 if (dialogResult == SETUNA.Main.Style.StyleUiFactory.DialogResultNo)
                                 {
                                     flag = true;
@@ -184,7 +190,7 @@ namespace SETUNA.Main.StyleItems
                 return text2;
             }
             SETUNA.Main.Style.HostCommands.SuspendLayerRefresh?.Invoke();
-            var chosen = SETUNA.Main.Style.StyleUiFactory.SaveFileDialog(saveFolder, text, FileFilter);
+            var chosen = await SETUNA.Main.Style.StyleUiFactory.SaveFileDialog(saveFolder, text, FileFilter);
             if (chosen == null)
             {
                 return "";
@@ -208,7 +214,7 @@ namespace SETUNA.Main.StyleItems
             }
             if (imageCodecInfo == null)
             {
-                SETUNA.Main.Style.StyleUiFactory.MessageBox("因为利用可以的编码器没找到，不能保存图像。", GetDisplayName(), 0);
+                var _ = SETUNA.Main.Style.StyleUiFactory.MessageBox("因为利用可以的编码器没找到，不能保存图像。", GetDisplayName(), 0);
             }
             return imageCodecInfo;
         }
@@ -222,7 +228,7 @@ namespace SETUNA.Main.StyleItems
         protected virtual string FileFilter => "所有文件 (*.*)|*.*";
 
         // Token: 0x060000CC RID: 204
-        protected abstract EncoderParameter[] GetEncoderParams(ref IScrap scrap);
+        protected abstract System.Threading.Tasks.Task<EncoderParameter[]> GetEncoderParamsAsync(IScrap scrap);
 
         // Token: 0x060000CD RID: 205
         protected abstract ImageFormat GetImageFormat();

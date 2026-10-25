@@ -25,12 +25,23 @@ namespace SETUNA.Main.StyleItems
         // Token: 0x06000029 RID: 41 RVA: 0x000033C8 File Offset: 0x000015C8
         public void StyleItemSetting()
         {
-            var dialog = SETUNA.Main.Style.StyleUiFactory.EditDialogFactory?.Invoke(this);
+            // 对话框异步泵（不能在 UI 线程同步等待）：async lambda 全程 await
+            _ = StyleItemSettingAsync();
+        }
+
+        private async System.Threading.Tasks.Task StyleItemSettingAsync()
+        {
+            var factory = SETUNA.Main.Style.StyleUiFactory.EditDialogFactory;
+            if (factory == null)
+            {
+                return;
+            }
+            var dialog = await factory(this);
             if (dialog == null)
             {
                 return;
             }
-            if (dialog.ShowEditDialog() == 1)
+            if (await dialog.ShowEditDialog() == 1)
             {
                 SetTunedStyleItem((CStyleItem)dialog.EditedStyleItem);
             }

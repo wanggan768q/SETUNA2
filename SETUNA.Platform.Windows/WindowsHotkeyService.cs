@@ -6,14 +6,19 @@ namespace SETUNA.Platform.Windows
 {
     /// <summary>
     /// 全局热键服务：message-only window 接收 WM_HOTKEY，独立于任何 UI 框架的窗口生命周期。
-    /// 线程模型：Register/Unregister 必须与消息泵在同一线程（服务构造时自建线程）。
-    /// 低级键盘过滤（原 ClotheslineSpaceKeyHook）合并进本服务，同一消息线程安装钩子。
+    ///
+    /// 线程模型：Register/Unregister/SetKeyFilter 可从任意线程调用，内部封送到服务线程执行
+    /// （RegisterHotKey/UnregisterHotKey 的窗口句柄方案要求窗口与热键同线程；封送经
+    /// PostThreadMessage 自定义消息 + 服务线程内同步等待完成）。
+    /// 低级键盘过滤（原 ClotheslineSpaceKeyHook）合并进本服务，同一服务线程安装钩子。
     /// </summary>
     public sealed class WindowsHotkeyService : IHotkeyService, IDisposable
     {
-        private const int ModAlt = 1;
-        private const int ModControl = 2;
-        private const int ModShift = 4;
+        // 自定义封送消息（WM_APP 区段，不与系统/框架冲突）
+        private const int WM_APP_REGISTER = 0x8001;      // wParam=&Op, lParam=0；结果写 Op.Result
+        private const int WM_APP_UNREGISTER = 0x8002;    // wParam=id, lParam=&Op
+        private const int WM_APP_UNREGISTER_ALL = 0x8003;
+        private const int WM_APP_SET_KEY_FILTER = 0x8004; // wParam=&Op(Func<int,bool>)
 
         private sealed class Registration
         {
@@ -21,46 +26,46 @@ namespace SETUNA.Platform.Windows
             public Action Callback;
         }
 
+        /// <summary>跨线程封送的操作单元：服务线程执行，调用线程等完成信号。</summary>
+        private sealed class PendingOp
+        {
+            public HotkeyId Id;
+            public HotkeySpec Spec;
+            public Action Callback;
+            public Func<int, bool> KeyFilter;
+            public bool BoolResult;
+            public readonly ManualResetEvent Done = new ManualResetEvent(false);
+        }
+
         private readonly object _lock = new object();
         private readonly System.Collections.Generic.Dictionary<HotkeyId, Registration> _registrations = new();
 
         private IntPtr _hwnd;
         private uint _threadId;
-        private bool _ready;
+        private volatile bool _ready;
         private readonly ManualResetEvent _readyEvent = new ManualResetEvent(false);
         private bool _disposed;
+
+        // native 回调必须保持根引用（GC 回收 thunk = 窗口消息 AV），review 严重项 #2
+        private NativeMethods.WndProcDelegate _wndProc;
 
         // 低级键盘钩子
         private IntPtr _hookHandle;
         private NativeMethods.LowLevelKeyboardProc _hookProc;
-        private Func<int, bool> _keyFilter;
+        private volatile Func<int, bool> _keyFilter;
 
         public bool Register(HotkeyId id, HotkeySpec spec, Action callback)
         {
-            EnsureThread();
-            // 与原 SetunaOption.RegistHotKey 一致：先注销再注册
-            Unregister(id);
-
-            if (spec == null || spec.VirtualKey == 0)
+            // 与原 SetunaOption.RegistHotKey 一致：先注销再注册（在服务线程上执行）
+            var op = new PendingOp { Id = id, Spec = spec, Callback = callback };
+            var unregistered = MarshalToServiceThread(WM_APP_UNREGISTER, op, wait: false);
+            var registered = MarshalToServiceThread(WM_APP_REGISTER, op, wait: true);
+            if (!registered)
             {
-                return true; // 与原实现一致：Keys.None 不注册但也算成功
+                var err = Marshal.GetLastWin32Error();
+                Console.WriteLine($"RegisterHotKey FAILED id={id} mods={spec?.Modifiers} vk={spec?.VirtualKey} err={err}");
             }
-
-            lock (_lock)
-            {
-                // NULL 窗口 = 线程热键：WM_HOTKEY 投递到服务线程消息队列，
-                // 消息循环按 thread message 分发。
-                // ponytail: 不用 message-only window——本机实测窗口路径 RegisterHotKey
-                // 稳定 1408（原因未明），线程热键等价且少一层窗口依赖。
-                if (NativeMethods.RegisterHotKey(IntPtr.Zero, (int)id, spec.Modifiers, spec.VirtualKey) == 0)
-                {
-                    var err = System.Runtime.InteropServices.Marshal.GetLastWin32Error();
-                    Console.WriteLine($"RegisterHotKey FAILED id={id} mods={spec.Modifiers} vk={spec.VirtualKey} err={err}");
-                    return false;
-                }
-                _registrations[id] = new Registration { Spec = spec, Callback = callback };
-            }
-            return true;
+            return registered;
         }
 
         public void Unregister(HotkeyId id)
@@ -69,19 +74,7 @@ namespace SETUNA.Platform.Windows
             {
                 return;
             }
-
-            lock (_lock)
-            {
-                if (NativeMethods.UnregisterHotKey(IntPtr.Zero, (int)id) != 0)
-                {
-                    _registrations.Remove(id);
-                }
-                else if (_registrations.ContainsKey(id))
-                {
-                    // 注销失败但表里有：清表（原实现 UnregistHotKey 无条件调用，不查注册状态）
-                    _registrations.Remove(id);
-                }
-            }
+            MarshalToServiceThread(WM_APP_UNREGISTER, new PendingOp { Id = id }, wait: false);
         }
 
         public void UnregisterAll()
@@ -90,37 +83,12 @@ namespace SETUNA.Platform.Windows
             {
                 return;
             }
-
-            lock (_lock)
-            {
-                foreach (var id in _registrations.Keys)
-                {
-                    NativeMethods.UnregisterHotKey(IntPtr.Zero, (int)id);
-                }
-                _registrations.Clear();
-            }
+            MarshalToServiceThread(WM_APP_UNREGISTER_ALL, new PendingOp(), wait: false);
         }
 
         public void SetKeyFilter(Func<int, bool> virtualKeyFilter)
         {
-            EnsureThread();
-            _keyFilter = virtualKeyFilter;
-            if (virtualKeyFilter != null && _hookHandle == IntPtr.Zero)
-            {
-                _hookProc = KeyHookProc;
-                _hookHandle = NativeMethods.SetWindowsHookEx(NativeMethods.WH_KEYBOARD_LL, _hookProc, NativeMethods.GetModuleHandle(null), 0);
-                if (_hookHandle == IntPtr.Zero)
-                {
-                    _hookProc = null;
-                    Console.WriteLine("WindowsHotkeyService: 低级键盘钩子安装失败");
-                }
-            }
-            else if (virtualKeyFilter == null && _hookHandle != IntPtr.Zero)
-            {
-                NativeMethods.UnhookWindowsHookEx(_hookHandle);
-                _hookHandle = IntPtr.Zero;
-                _hookProc = null;
-            }
+            MarshalToServiceThread(WM_APP_SET_KEY_FILTER, new PendingOp { KeyFilter = virtualKeyFilter }, wait: false);
         }
 
         public int GetModifierState()
@@ -146,6 +114,46 @@ namespace SETUNA.Platform.Windows
             return state;
         }
 
+        /// <summary>把操作封送到服务线程。wait=true 时同步等待结果；否则 fire-and-forget。</summary>
+        private bool MarshalToServiceThread(int message, PendingOp op, bool wait)
+        {
+            EnsureThread();
+
+            if (GetCurrentThreadId() == _threadId)
+            {
+                // 已在服务线程（钩子回调重入等）：直接执行
+                ExecuteOp(message, op);
+                return message == WM_APP_REGISTER ? op.BoolResult : true;
+            }
+
+            var handle = GCHandle.Alloc(op, GCHandleType.Normal);
+            try
+            {
+                if (!NativeMethods.PostThreadMessage(_threadId, message, (IntPtr)message, GCHandle.ToIntPtr(handle)))
+                {
+                    handle.Free();
+                    return false;
+                }
+                if (wait)
+                {
+                    op.Done.WaitOne(5000);
+                }
+                else
+                {
+                    // fire-and-forget：完成信号由服务线程释放 GCHandle
+                    return true;
+                }
+            }
+            finally
+            {
+                if (wait && op.Done.WaitOne(0))
+                {
+                    handle.Free();
+                }
+            }
+            return op.BoolResult;
+        }
+
         private void EnsureThread()
         {
             if (_ready)
@@ -169,12 +177,14 @@ namespace SETUNA.Platform.Windows
 
         private void MessageLoop()
         {
-            _threadId = NativeMethods.GetModuleHandle(null) != IntPtr.Zero ? GetCurrentThreadId() : 0;
+            _threadId = GetCurrentThreadId();
 
             const string className = "SETUNA_HotkeyMsgWindow";
+            // 委托存字段保持根引用（review 严重项 #2：局部变量可被 GC 回收 → native thunk 悬空 AV）
+            _wndProc = WndProc;
             var wndClass = new NativeMethods.WNDCLASS
             {
-                lpfnWndProc = WndProc,
+                lpfnWndProc = _wndProc,
                 lpszClassName = className,
                 hInstance = NativeMethods.GetModuleHandle(null),
             };
@@ -193,12 +203,16 @@ namespace SETUNA.Platform.Windows
             _ready = true;
             _readyEvent.Set();
 
-            while (NativeMethods.GetMessage(out var msg, IntPtr.Zero, 0, 0))
+            while (NativeMethods.GetMessageInt(out var msg, IntPtr.Zero, 0, 0) > 0)
             {
-                if (msg.hwnd == IntPtr.Zero && msg.message == NativeMethods.WM_HOTKEY)
+                if (msg.hwnd == IntPtr.Zero && (int)msg.message >= 0x8001 && (int)msg.message <= 0x8004)
                 {
-                    // 线程热键（NULL 窗口注册）：直接分发
-                    WndProc(IntPtr.Zero, NativeMethods.WM_HOTKEY, msg.wParam, msg.lParam);
+                    // 封送操作：lParam = GCHandle → PendingOp
+                    var op = GCHandle.FromIntPtr(msg.lParam).Target as PendingOp;
+                    ExecuteOp((int)msg.message, op);
+                    op?.Done.Set();
+                    var handle = GCHandle.FromIntPtr(msg.lParam);
+                    handle.Free();
                     continue;
                 }
                 NativeMethods.TranslateMessage(ref msg);
@@ -206,6 +220,73 @@ namespace SETUNA.Platform.Windows
             }
 
             NativeMethods.DestroyWindow(_hwnd);
+        }
+
+        /// <summary>在服务线程上执行封送操作（Register/Unregister 真正落地点）。</summary>
+        private void ExecuteOp(int message, PendingOp op)
+        {
+            switch (message)
+            {
+                case WM_APP_REGISTER:
+                    if (op.Spec == null || op.Spec.VirtualKey == 0)
+                    {
+                        // 与原实现一致：Keys.None 不注册但也算成功
+                        op.BoolResult = true;
+                        break;
+                    }
+                    if (NativeMethods.RegisterHotKey(_hwnd, (int)op.Id, op.Spec.Modifiers, op.Spec.VirtualKey) != 0)
+                    {
+                        lock (_lock)
+                        {
+                            _registrations[op.Id] = new Registration { Spec = op.Spec, Callback = op.Callback };
+                        }
+                        op.BoolResult = true;
+                    }
+                    else
+                    {
+                        op.BoolResult = false;
+                    }
+                    break;
+
+                case WM_APP_UNREGISTER:
+                    NativeMethods.UnregisterHotKey(_hwnd, (int)op.Id);
+                    lock (_lock)
+                    {
+                        _registrations.Remove(op.Id);
+                    }
+                    break;
+
+                case WM_APP_UNREGISTER_ALL:
+                    lock (_lock)
+                    {
+                        foreach (var id in _registrations.Keys)
+                        {
+                            NativeMethods.UnregisterHotKey(_hwnd, (int)id);
+                        }
+                        _registrations.Clear();
+                    }
+                    break;
+
+                case WM_APP_SET_KEY_FILTER:
+                    _keyFilter = op.KeyFilter;
+                    if (op.KeyFilter != null && _hookHandle == IntPtr.Zero)
+                    {
+                        _hookProc = KeyHookProc;
+                        _hookHandle = NativeMethods.SetWindowsHookEx(NativeMethods.WH_KEYBOARD_LL, _hookProc, NativeMethods.GetModuleHandle(null), 0);
+                        if (_hookHandle == IntPtr.Zero)
+                        {
+                            _hookProc = null;
+                            Console.WriteLine("WindowsHotkeyService: 低级键盘钩子安装失败");
+                        }
+                    }
+                    else if (op.KeyFilter == null && _hookHandle != IntPtr.Zero)
+                    {
+                        NativeMethods.UnhookWindowsHookEx(_hookHandle);
+                        _hookHandle = IntPtr.Zero;
+                        _hookProc = null;
+                    }
+                    break;
+            }
         }
 
         private IntPtr WndProc(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam)
@@ -235,14 +316,12 @@ namespace SETUNA.Platform.Windows
             if (filter != null)
             {
                 var vk = Marshal.ReadInt32(lParam); // KBDLLHOOKSTRUCT.vkCode 位于结构体首字段
-                // 仅在 down 消息上判定；过滤消费则吞掉，否则放行
                 var msg = wParam.ToInt64();
                 const int WM_KEYDOWN = 0x0100;
                 const int WM_SYSKEYDOWN = 0x0104;
-                const int WM_KEYUP = 0x0105;
-                const int WM_SYSKEYUP = 0x0108;
 
-                if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN || msg == WM_KEYUP || msg == WM_SYSKEYUP)
+                // 仅在 down 上判定消费（up 恒放行，配对语义由状态机消费方维护）
+                if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN)
                 {
                     if (filter(vk))
                     {
@@ -271,10 +350,10 @@ namespace SETUNA.Platform.Windows
                 _hookHandle = IntPtr.Zero;
             }
             UnregisterAll();
-            if (_hwnd != IntPtr.Zero)
+            // WM_QUIT 发给服务线程（PostQuitMessage 只作用于调用线程，review 低危项）
+            if (_threadId != 0)
             {
-                NativeMethods.PostQuitMessage(0);
-                _hwnd = IntPtr.Zero;
+                NativeMethods.PostThreadMessage(_threadId, 0x0012 /*WM_QUIT*/, IntPtr.Zero, IntPtr.Zero);
             }
         }
     }

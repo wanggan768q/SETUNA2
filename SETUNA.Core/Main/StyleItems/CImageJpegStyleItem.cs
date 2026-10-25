@@ -19,14 +19,15 @@ namespace SETUNA.Main.StyleItems
         }
 
         // Token: 0x06000347 RID: 839 RVA: 0x00015768 File Offset: 0x00013968
-        protected override EncoderParameter[] GetEncoderParams(ref IScrap scrap)
+        protected override async System.Threading.Tasks.Task<EncoderParameter[]> GetEncoderParamsAsync(IScrap scrap)
         {
             var list = new List<EncoderParameter>();
             if (ShowPreview)
             {
-                using var preview = (SETUNA.Main.Style.StyleUiFactory.PreviewDialogFactory?.Invoke(this,
-                    HaveMargin ? scrap.GetViewImage() : (Image)(Bitmap)scrap.Image.Clone())) as SETUNA.Main.Style.StyleUiFactory.IStyleItemEditDialog;
-                if (preview == null || preview.ShowEditDialog() != SETUNA.Main.Style.StyleUiFactory.DialogResultOK)
+                using var preview = await (SETUNA.Main.Style.StyleUiFactory.PreviewDialogFactory?.Invoke(this,
+                    HaveMargin ? scrap.GetViewImage() : (Image)(Bitmap)scrap.Image.Clone())
+                    ?? System.Threading.Tasks.Task.FromResult<SETUNA.Main.Style.StyleUiFactory.IStyleItemEditDialog>(null));
+                if (preview == null || await preview.ShowEditDialog() != SETUNA.Main.Style.StyleUiFactory.DialogResultOK)
                 {
                     return null;
                 }

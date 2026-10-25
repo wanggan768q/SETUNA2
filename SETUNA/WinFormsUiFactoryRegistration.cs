@@ -44,8 +44,8 @@ namespace SETUNA
                 new CompactScrap((ScrapBase)scrap, (CCompactStyleItem)item, (Point)clickPoint).Show();
             StyleUiFactory.PicasaUploadBar = (scrap, item) => ShowPicasaBar((ScrapBase)scrap, (CPicasaUploaderStyleItem)item);
 
-            StyleUiFactory.TrimDialogFactory = scrap => new TrimDialogHost(new TrimWindow((ScrapBase)scrap));
-            StyleUiFactory.EditDialogFactory = item => new EditDialogHost(BuildEditPanel(item));
+            StyleUiFactory.TrimDialogFactory = scrap => System.Threading.Tasks.Task.FromResult<SETUNA.Main.Style.StyleUiFactory.ITrimDialog>(new TrimDialogHost(new TrimWindow((ScrapBase)scrap)));
+            StyleUiFactory.EditDialogFactory = item => System.Threading.Tasks.Task.FromResult<SETUNA.Main.Style.StyleUiFactory.IStyleItemEditDialog>(new EditDialogHost(BuildEditPanel(item)));
 
             StyleUiFactory.PreviewDialogFactory = (item, image) =>
             {
@@ -59,10 +59,10 @@ namespace SETUNA
                 {
                     panel = new ImageJpegPreviewPanel(cimageStyleItem, (Bitmap)image, cimageStyleItem.GetImageCodecInfoPublic());
                 }
-                return new EditDialogHost(panel);
+                return System.Threading.Tasks.Task.FromResult<SETUNA.Main.Style.StyleUiFactory.IStyleItemEditDialog>(new EditDialogHost(panel));
             };
 
-            StyleUiFactory.ShowMessageBox = (text, caption, buttons) => (int)MessageBox.Show(text, caption, (MessageBoxButtons)buttons);
+            StyleUiFactory.ShowMessageBox = (text, caption, buttons) => System.Threading.Tasks.Task.FromResult((int)MessageBox.Show(text, caption, (MessageBoxButtons)buttons));
             StyleUiFactory.ShowSaveFileDialog = (folder, fileName, filter) =>
             {
                 using var dialog = new SaveFileDialog
@@ -75,7 +75,7 @@ namespace SETUNA
                 SETUNA.Main.Layer.LayerManager.Instance.SuspendRefresh();
                 try
                 {
-                    return dialog.ShowDialog() == DialogResult.OK ? dialog.FileName : null;
+                    return System.Threading.Tasks.Task.FromResult(dialog.ShowDialog() == DialogResult.OK ? dialog.FileName : null);
                 }
                 finally
                 {
@@ -153,7 +153,7 @@ namespace SETUNA
 
             public int TrimTop => _window.TrimTop;
 
-            public int ShowTrimDialog() => (int)_window.ShowDialog();
+            public System.Threading.Tasks.Task<int> ShowTrimDialog() => System.Threading.Tasks.Task.FromResult((int)_window.ShowDialog());
 
             public void Dispose() => _window.Dispose();
         }
@@ -172,7 +172,7 @@ namespace SETUNA
 
             public object EditedStyleItem => _toolBox?.StyleItem;
 
-            public int ShowEditDialog() => (int)_form.ShowDialog();
+            public System.Threading.Tasks.Task<int> ShowEditDialog() => System.Threading.Tasks.Task.FromResult((int)_form.ShowDialog());
 
             public void Dispose() => _form.Dispose();
         }

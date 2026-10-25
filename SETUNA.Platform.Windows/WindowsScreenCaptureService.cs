@@ -24,16 +24,15 @@ namespace SETUNA.Platform.Windows
                 {
                     destDc = graphics.GetHdc();
                     // 0x40CC0020 = SRCCOPY | CAPTUREBLT，与原实现字面量一致
-                    NativeMethods.BitBlt(destDc, 0, 0, bounds.Width, bounds.Height,
-                        screenDc, bounds.X, bounds.Y, NativeMethods.SRCCOPY_CAPTURBLT);
-                    success = true;
+                    success = NativeMethods.BitBlt(destDc, 0, 0, bounds.Width, bounds.Height,
+                        screenDc, bounds.X, bounds.Y, NativeMethods.SRCCOPY_CAPTURBLT) != 0;
                 }
             }
             finally
             {
                 if (destDc != IntPtr.Zero)
                 {
-                    graphics_ReleaseHdc(bounds, bitmap);
+                    FinallyReleaseDc(bounds, bitmap);
                 }
                 if (screenDc != IntPtr.Zero)
                 {
@@ -49,10 +48,9 @@ namespace SETUNA.Platform.Windows
             return bitmap;
         }
 
-        // GetHdc/ReleaseHdc 必须配对；拆 helper 是因为 try/finally 中 graphics 已释放作用域
-        private static void graphics_ReleaseHdc(Rectangle bounds, Bitmap bitmap)
+        private void FinallyReleaseDc(Rectangle bounds, Bitmap bitmap)
         {
-            // graphics 在 using 中已 ReleaseHdc，此处无需动作；保留空实现以维持结构清晰
+            // GetHdc 已在 using 内 ReleaseHdc 配对（Graphics.Dispose 兜底）；此处仅需标记结构
         }
 
         public IReadOnlyList<MonitorInfo> GetMonitors()

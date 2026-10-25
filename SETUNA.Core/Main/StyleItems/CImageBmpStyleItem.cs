@@ -11,7 +11,7 @@ namespace SETUNA.Main.StyleItems
         /// <summary>宿主面板键：宿主映射到对应编辑面板。</summary>
         public const string ImageBmpStyleItemPanelKey = "ImageBmpStyleItemPanel";
         // Token: 0x06000481 RID: 1153 RVA: 0x0001D84C File Offset: 0x0001BA4C
-        protected override EncoderParameter[] GetEncoderParams(ref IScrap scrap)
+        protected override async System.Threading.Tasks.Task<EncoderParameter[]> GetEncoderParamsAsync(IScrap scrap)
         {
             return new List<EncoderParameter>
             {
