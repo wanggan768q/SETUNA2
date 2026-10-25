@@ -261,7 +261,30 @@ namespace SETUNA.Avalonia.Views
         int IScrap.Top { get => Location.Y; set => Location = new DrawingPoint(Location.X, value); }
         int IScrap.Width { get => (int)Math.Round(Width * ScaleFactor); }
         int IScrap.Height { get => (int)Math.Round(Height * ScaleFactor); }
-        public int Scale { get => _scale; set => _scale = value; }
+        public int Scale
+        {
+            get => _scale;
+            set
+            {
+                _scale = Math.Max(-200, Math.Min(200, value));
+                ApplyScaleToLayout();
+            }
+        }
+
+        /// <summary>旧版 Scale 语义：窗口 = 图像 × Scale%（+边距），绘制时拉伸。</summary>
+        private void ApplyScaleToLayout()
+        {
+            if (_image == null)
+            {
+                return;
+            }
+            var scale = _scale / 100.0;
+            // Scale 为负时保持图像可见（旧版 imgView 尺寸不随负值缩放，仅窗口尺寸走 |scale| 路径时 clamp）
+            var factor = scale <= 0 ? 1.0 : scale;
+            Width = (_image.Width * factor) / ScaleFactor;
+            Height = (_image.Height * factor) / ScaleFactor;
+            InvalidateVisual();
+        }
 
         void IScrap.SetBounds(int x, int y, int width, int height, int specified)
         {
@@ -296,8 +319,32 @@ namespace SETUNA.Avalonia.Views
         void IScrap.Close() => Close();
         public new void Refresh()
         {
-            // 图像重绘：位图变更时由 Image 属性 setter 已更新；此处触发布局
+            // 原地图像修改（反色/旋转 RotateFlip 等）不会走 Image setter：
+            // 从 _image 重建显示位图，再触发布局（对齐 ScrapBase.Refresh 重绘语义）
+            RebuildViewBitmap();
             InvalidateVisual();
+        }
+
+        private void RebuildViewBitmap()
+        {
+            if (_image == null)
+            {
+                return;
+            }
+            try
+            {
+                using var stream = new System.IO.MemoryStream();
+                ((System.Drawing.Bitmap)_image).Save(stream, System.Drawing.Imaging.ImageFormat.Png);
+                stream.Position = 0;
+                var newBitmap = new Bitmap(stream);
+                _viewBitmap?.Dispose();
+                _viewBitmap = newBitmap;
+                _imageControl.Source = _viewBitmap;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"ScrapWindow.RebuildViewBitmap: {ex.Message}");
+            }
         }
         bool IScrap.Focus() => base.Focus();
 
@@ -312,16 +359,9 @@ namespace SETUNA.Avalonia.Views
                 _image = value;
                 if (value != null)
                 {
-                    _viewBitmap?.Dispose();
-                    using var stream = new System.IO.MemoryStream();
-                    // 直接读原始字节：GDI Image → PNG 流 → Avalonia Bitmap
-                    ((System.Drawing.Bitmap)value).Save(stream, System.Drawing.Imaging.ImageFormat.Png);
-                    stream.Position = 0;
-                    _viewBitmap = new Bitmap(stream);
-                    _imageControl.Source = _viewBitmap;
-                    // 图像是物理像素，窗口尺寸是 DIP：换算保证 1:1 显示不变形
-                    Width = value.Width / ScaleFactor;
-                    Height = value.Height / ScaleFactor;
+                    RebuildViewBitmap();
+                    // 对齐旧版 Image setter：Scale=Scale 触发窗口尺寸按当前缩放重算（100% 时 1:1）
+                    ApplyScaleToLayout();
                 }
                 ScrapImageChangedEvent?.Invoke(this, new ScrapEventArgs(this));
             }
