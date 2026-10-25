@@ -53,6 +53,8 @@ namespace SETUNA.Avalonia
             Option = LoadOption();
             ScrapUiOptionProvider.Styles = Option.Styles;
             ScrapUiOptionProvider.WClickStyleID = Option.Scrap.WClickStyleID;
+            ScrapUiOptionProvider.SubMenuStyles = Option.Scrap.SubMenuStyles;
+            ScrapUiOptionProvider.ClotheslineEnabled = Option.ClotheslineEnabled;
 
             ScrapBook = new ScrapBook(this);
             ScrapBook.DustBox = new System.Collections.Generic.Queue<IScrap>();
@@ -74,6 +76,8 @@ namespace SETUNA.Avalonia
                     {
                         SaveOption();
                         ScrapUiOptionProvider.Styles = Option.Styles;
+                        ScrapUiOptionProvider.SubMenuStyles = Option.Scrap.SubMenuStyles;
+                        ScrapUiOptionProvider.ClotheslineEnabled = Option.ClotheslineEnabled;
                         ApplyHotkeysFromOption();
                     });
                     editor.Show(_ownerWindow);
@@ -193,6 +197,44 @@ namespace SETUNA.Avalonia
             {
                 // 收缩窗：期 4 简化版——隐藏原图 + 50×50 局部缩略窗
                 CreateCompactWindow((IScrap)scrap, (CCompactStyleItem)item);
+            };
+
+            // 消息框：buttons 对齐 WinForms MessageBoxButtons（0=OK, 4=YesNo, 0x103=YesNoCancel+默认钮2）
+            StyleUiFactory.ShowMessageBox = (text, caption, buttons) =>
+            {
+                var tcs = new TaskCompletionSource<int>();
+                global::Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    var dialog = new Views.MessageBoxWindow(caption ?? "SETUNA", text ?? string.Empty, buttons);
+                    var result = dialog.ShowDialog<int?>(_ownerWindow).GetAwaiter().GetResult();
+                    tcs.TrySetResult(result ?? 2);
+                });
+                return tcs.Task.GetAwaiter().GetResult();
+            };
+
+            // 另存为对话框：返回选定路径，取消 null（对齐旧 SaveFileDialog.ShowDialog 语义）
+            StyleUiFactory.ShowSaveFileDialog = (folder, fileName, filter) =>
+            {
+                var tcs = new TaskCompletionSource<string>();
+                global::Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
+                {
+                    var storage = global::Avalonia.Controls.TopLevel.GetTopLevel(_ownerWindow)?.StorageProvider;
+                    if (storage == null)
+                    {
+                        tcs.TrySetResult(null);
+                        return;
+                    }
+                    // filter "描述|*.ext" → StorageProvider FilePickerFileType
+                    var options = new global::Avalonia.Platform.Storage.FilePickerSaveOptions
+                    {
+                        Title = "保存",
+                        SuggestedFileName = fileName,
+                        DefaultExtension = System.IO.Path.GetExtension(fileName ?? string.Empty).TrimStart('.'),
+                    };
+                    var file = await storage.SaveFilePickerAsync(options);
+                    tcs.TrySetResult(file?.Path.LocalPath);
+                });
+                return tcs.Task.GetAwaiter().GetResult();
             };
 
             StyleUiFactory.PicasaUploadBar = null; // 服务已停，不提供
@@ -403,6 +445,29 @@ namespace SETUNA.Avalonia
                         $"截图热键 {captureKey} 注册失败（可能被其他程序占用）");
                 }
             }
+
+            // Function1：全部显示/隐藏切换（对齐旧 Mainform.SetAllScrapsActive）
+            if (Option.ScrapHotKeys.Length > (int)SETUNA.Main.HotKeyID.Function1)
+            {
+                var funcKey = Option.ScrapHotKeys[(int)SETUNA.Main.HotKeyID.Function1];
+                if (funcKey != System.Windows.Forms.Keys.None)
+                {
+                    hotkey.Register(Core.Platform.HotkeyId.Function1, ToSpec(funcKey), () =>
+                        global::Avalonia.Threading.Dispatcher.UIThread.Post(ToggleAllScraps));
+                }
+            }
+        }
+
+        /// <summary>全部贴图显示/隐藏切换（对齐旧 Mainform.SetAllScrapsActive 语义）。</summary>
+        private bool _allScrapActive;
+
+        private void ToggleAllScraps()
+        {
+            _allScrapActive = !_allScrapActive;
+            foreach (var scrap in ScrapBook)
+            {
+                scrap.Visible = _allScrapActive;
+            }
         }
 
         internal static Core.Platform.HotkeySpec ToSpec(System.Windows.Forms.Keys keys)
@@ -432,19 +497,96 @@ namespace SETUNA.Avalonia
                 return;
             }
             var iconData = TryLoadIconData();
-            PlatformServices.Instance.Tray.Initialize(new TrayIconSpec
+            PlatformServices.Instance.Tray.Initialize(BuildTraySpec(iconData));
+
+            // 名单/回收站变化时重建托盘菜单（对齐旧版每次展开前刷新的动态行为）
+            ScrapBook.ScrapAdded += (s, e) => RefreshTrayMenu();
+            ScrapBook.ScrapRemoved += (s, e) => RefreshTrayMenu();
+        }
+
+        private TrayIconSpec BuildTraySpec(byte[] iconData)
+        {
+            return new TrayIconSpec
             {
                 IconData = iconData,
                 ToolTipText = "SETUNA",
                 ClickAction = () => PasteFromClipboard(),
                 MenuItems = new[]
                 {
+                    new TrayMenuItem { Header = "参考图名单", Items = BuildScrapListItems() },
+                    new TrayMenuItem { Header = "回收站", Items = BuildDustBoxItems() },
+                    new TrayMenuItem { Header = "清空回收站", ClickAction = () => global::Avalonia.Threading.Dispatcher.UIThread.Post(() => ScrapBook.EraseDustBox()) },
+                    new TrayMenuItem { IsSeparator = true },
+                    new TrayMenuItem { Header = "关闭所有截图", ClickAction = () => global::Avalonia.Threading.Dispatcher.UIThread.Post(() => ScrapBook.CloseAllScrap()) },
+                    new TrayMenuItem { IsSeparator = true },
                     new TrayMenuItem { Header = "粘贴贴图", ClickAction = () => global::Avalonia.Threading.Dispatcher.UIThread.Post(PasteFromClipboard) },
                     new TrayMenuItem { Header = "全屏贴图", ClickAction = () => global::Avalonia.Threading.Dispatcher.UIThread.Post(StartCapture) },
                     new TrayMenuItem { IsSeparator = true },
-                    new TrayMenuItem { Header = "退出", ClickAction = () => global::Avalonia.Threading.Dispatcher.UIThread.Post(() => { SaveOption(); Environment.Exit(0); }) },
+                    new TrayMenuItem { Header = "设置", ClickAction = () => global::Avalonia.Threading.Dispatcher.UIThread.Post(() => HostCommands.RequestOption?.Invoke()) },
+                    new TrayMenuItem { Header = "退出", ClickAction = () => global::Avalonia.Threading.Dispatcher.UIThread.Post(() => HostCommands.RequestShutdown?.Invoke()) },
                 },
-            });
+            };
+        }
+
+        private void RefreshTrayMenu()
+        {
+            try
+            {
+                PlatformServices.Instance.Tray.RebuildMenu(BuildTraySpec(TryLoadIconData()));
+            }
+            catch (Exception ex)
+            {
+                Log($"RefreshTrayMenu: {ex.Message}");
+            }
+        }
+
+        /// <summary>参考图名单子项（对齐旧 ToolStripScrapList：显示中贴图 → 激活置顶）。</summary>
+        private TrayMenuItem[] BuildScrapListItems()
+        {
+            var items = new List<TrayMenuItem>();
+            foreach (var scrap in ScrapBook)
+            {
+                var captured = scrap;
+                items.Add(new TrayMenuItem
+                {
+                    Header = captured.Name ?? "(untitled)",
+                    ClickAction = () => global::Avalonia.Threading.Dispatcher.UIThread.Post(() => captured.Visible = true),
+                });
+            }
+            if (items.Count == 0)
+            {
+                items.Add(new TrayMenuItem { Header = "（无贴图）", IsEnabled = false });
+            }
+            return items.ToArray();
+        }
+
+        /// <summary>回收站子项（对齐旧 ToolStripDustboxList：点击恢复）。</summary>
+        private TrayMenuItem[] BuildDustBoxItems()
+        {
+            var items = new List<TrayMenuItem>();
+            foreach (var scrap in ScrapBook.DustBoxArray)
+            {
+                if (scrap is IScrap s)
+                {
+                    var captured = s;
+                    items.Add(new TrayMenuItem
+                    {
+                        Header = captured.Name ?? "(untitled)",
+                        ClickAction = () => global::Avalonia.Threading.Dispatcher.UIThread.Post(() => RestoreScrap(captured)),
+                    });
+                }
+            }
+            if (items.Count == 0)
+            {
+                items.Add(new TrayMenuItem { Header = "（空）", IsEnabled = false });
+            }
+            return items.ToArray();
+        }
+
+        /// <summary>恢复回收站贴图（对齐旧 Mainform.RestoreScrap：出队→重建→其余按原序回填）。</summary>
+        private void RestoreScrap(IScrap scrap)
+        {
+            ScrapBook.RestoreFromDustBox(scrap);
         }
 
         private byte[] TryLoadIconData()
@@ -507,8 +649,7 @@ namespace SETUNA.Avalonia
             {
                 return SetunaOption.ConfigFile;
             }
-            var legacy = System.IO.Path.Combine(AppContext.BaseDirectory, @"..\..\..\..\..\SETUNAin\Debug
-et9.0-windows");
+            var legacy = System.IO.Path.Combine(AppContext.BaseDirectory, @"..\..\..\..\..\SETUNA\bin\Debug\net9.0-windows");
             try
             {
                 var full = System.IO.Path.GetFullPath(legacy);

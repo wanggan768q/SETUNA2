@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using DrawingPoint = System.Drawing.Point;
 using DrawingSize = System.Drawing.Size;
 using DrawingColor = System.Drawing.Color;
@@ -87,6 +88,7 @@ namespace SETUNA.Avalonia.Views
             Content = _imageControl;
 
             PointerPressed += ScrapWindow_PointerPressed;
+            DoubleTapped += ScrapWindow_DoubleTapped;
             PointerMoved += ScrapWindow_PointerMoved;
             PointerReleased += ScrapWindow_PointerReleased;
             PointerEntered += (s, e) => { _isMouseEnter = true; ApplyOpacityForState(); };
@@ -138,6 +140,17 @@ namespace SETUNA.Avalonia.Views
             e.Pointer.Capture(null);
         }
 
+        /// <summary>双击执行 WClickStyle（默认=收缩；对齐旧 ScrapBase_MouseDoubleClick）。</summary>
+        private void ScrapWindow_DoubleTapped(object sender, global::Avalonia.Input.TappedEventArgs e)
+        {
+            if (_manager == null)
+            {
+                return;
+            }
+            var screen = e.GetPosition(null).ToPixelPoint().ToDrawingPoint();
+            _manager.WClickStyle(this, screen);
+        }
+
         private void ShowStyleContextMenu(PointerPressedEventArgs e)
         {
             if (_manager == null)
@@ -145,30 +158,70 @@ namespace SETUNA.Avalonia.Views
                 return;
             }
 
+            // 菜单结构对齐旧版（Mainform.SetSubMenu/ScrapMenuOpening + UpdateClotheslineMenuItem）：
+            // 首项"挂回绳子"（模式开启且未挂起）→ 按 SubMenuStyles 顺序（负数=预置样式/分隔线）
             var menu = new ContextMenu();
 
-            var styles = ScrapUiOptionProvider.Styles;
-            if (styles != null)
+            if (ScrapUiOptionProvider.ClotheslineEnabled && !IsClotheslineHanging)
             {
-                foreach (var cstyle in styles)
+                var hangItem = new MenuItem { Header = "挂回绳子" };
+                hangItem.Click += (s, args) => SetClotheslineHanging(true);
+                menu.Items.Add(hangItem);
+            }
+
+            var subMenuStyles = ScrapUiOptionProvider.SubMenuStyles;
+            if (subMenuStyles != null)
+            {
+                foreach (var id in subMenuStyles)
                 {
-                    var captured = cstyle;
-                    var menuItem = new MenuItem { Header = cstyle.StyleName };
-                    menuItem.Click += (s, args) =>
+                    if (id >= 0)
                     {
-                        var scrap = (IScrap)this;
-                        captured.Apply(ref scrap);
-                    };
-                    menu.Items.Add(menuItem);
+                        var cstyle = ScrapUiOptionProvider.Styles?.FirstOrDefault(x => x.StyleID == id);
+                        if (cstyle != null)
+                        {
+                            menu.Items.Add(BuildStyleMenuItem(cstyle));
+                        }
+                    }
+                    else
+                    {
+                        if (id == -4)
+                        {
+                            // CSeparatorStyle 的预置 ID（旧版 -4）
+                            menu.Items.Add(new Separator());
+                        }
+                        else
+                        {
+                            var preStyle = SETUNA.Main.Style.CPreStyles.GetPreStyle(id);
+                            if (preStyle != null)
+                            {
+                                menu.Items.Add(BuildStyleMenuItem(preStyle));
+                            }
+                        }
+                    }
+                }
+            }
+            else if (ScrapUiOptionProvider.Styles != null)
+            {
+                // 配置缺 SubMenuStyles 时回退全量平铺
+                foreach (var cstyle in ScrapUiOptionProvider.Styles)
+                {
+                    menu.Items.Add(BuildStyleMenuItem(cstyle));
                 }
             }
 
-            var closeItem = new MenuItem { Header = "关闭" };
-            closeItem.Click += (s, args) => Close();
-            menu.Items.Add(new Separator());
-            menu.Items.Add(closeItem);
-
             menu.Open(this);
+        }
+
+        /// <summary>CSeparatorStyle 的预置 ID（旧版 -3；用于分隔线判断）。</summary>
+        private MenuItem BuildStyleMenuItem(SETUNA.Main.Style.CStyle cstyle)
+        {
+            var menuItem = new MenuItem { Header = cstyle.StyleName };
+            menuItem.Click += (s, args) =>
+            {
+                var scrap = (IScrap)this;
+                cstyle.Apply(ref scrap);
+            };
+            return menuItem;
         }
 
         // ===== 三态透明度动画（照搬 ScrapBase.timOpacity_Tick） =====

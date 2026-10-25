@@ -364,6 +364,29 @@ namespace SETUNA.Main
         }
 
         // Token: 0x060001CF RID: 463 RVA: 0x00009FA4 File Offset: 0x000081A4
+        /// <summary>从回收站恢复指定贴图（对齐旧 Mainform.RestoreScrap：出队匹配→重建→其余按原序回填）。</summary>
+        public void RestoreFromDustBox(IScrap scrap)
+        {
+            var list = new List<IScrap>();
+            while (_dustbox.Count > 0)
+            {
+                var current = _dustbox.Dequeue();
+                if (!ReferenceEquals(current, scrap))
+                {
+                    list.Add(current);
+                }
+                else
+                {
+                    AddScrapThenDo(current);
+                }
+            }
+            _dustbox.Clear();
+            foreach (var item in list)
+            {
+                _dustbox.Enqueue(item);
+            }
+        }
+
         public void WClickStyle(IScrap scrap, Point clickpoint)
         {
             var wclickStyleID = Host.Option.Scrap.WClickStyleID;
