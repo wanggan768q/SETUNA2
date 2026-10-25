@@ -18,7 +18,7 @@ namespace SETUNA.Main.StyleItems
         }
 
         // Token: 0x060000BC RID: 188 RVA: 0x00005634 File Offset: 0x00003834
-        protected override EncoderParameter[] GetEncoderParams(ref IScrap scrap)
+        protected override async System.Threading.Tasks.Task<EncoderParameter[]> GetEncoderParamsAsync(IScrap scrap)
         {
             return new List<EncoderParameter>
             {

@@ -25,7 +25,7 @@ namespace SETUNA.Platform.Windows
             }
             else
             {
-                exStyle &= ~NativeMethods.WS_EX_TRANSPARENT;
+                exStyle &= ~(NativeMethods.WS_EX_TRANSPARENT | NativeMethods.WS_EX_LAYERED);
             }
             NativeMethods.SetWindowLong(hwnd, NativeMethods.GWL_EXSTYLE, exStyle);
         }
@@ -43,7 +43,7 @@ namespace SETUNA.Platform.Windows
         public void SetWindowBounds(IntPtr hwnd, Rectangle bounds)
         {
             NativeMethods.SetWindowPos(hwnd, IntPtr.Zero, bounds.X, bounds.Y, bounds.Width, bounds.Height,
-                NativeMethods.SWP_NOACTIVATE);
+                NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_NOZORDER);
         }
 
         public Rectangle GetWindowBounds(IntPtr hwnd)

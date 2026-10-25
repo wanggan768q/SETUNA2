@@ -69,6 +69,11 @@ namespace SETUNA.Platform.Windows
                 }
 
                 var ptr = GlobalLock(hMem);
+                if (ptr == IntPtr.Zero)
+                {
+                    GlobalFree(hMem);
+                    throw new InvalidOperationException("GlobalLock 失败");
+                }
                 try
                 {
                     // BITMAPINFOHEADER
@@ -152,6 +157,12 @@ namespace SETUNA.Platform.Windows
                     }
                     var bottomUp = heightRaw > 0;
                     var height = Math.Abs(heightRaw);
+
+                    // 外部进程投递的 DIB 是不可信输入：校验声明的像素数据不超实际分配
+                    if (height <= 0 || size < 40 + (long)width * 4 * height)
+                    {
+                        return GetImageViaGdiPlus();
+                    }
 
                     var bitmap = new Bitmap(width, height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
                     var dest = bitmap.LockBits(new Rectangle(0, 0, width, height),

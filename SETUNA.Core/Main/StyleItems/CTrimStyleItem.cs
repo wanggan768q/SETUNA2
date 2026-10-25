@@ -11,12 +11,20 @@ namespace SETUNA.Main.StyleItems
         // Token: 0x06000393 RID: 915 RVA: 0x00016110 File Offset: 0x00014310
         public override void Apply(ref IScrap scrap, Point clickpoint)
         {
-            var trimWindow = SETUNA.Main.Style.StyleUiFactory.TrimDialogFactory?.Invoke(scrap);
+            // 裁剪对话框异步泵（UI 线程不能同步等待，review 严重项 S5）：
+            // fire-and-forget，对话框确认后在回调里继续裁剪
+            _ = ApplyAsync(scrap, clickpoint);
+        }
+
+        private async System.Threading.Tasks.Task ApplyAsync(IScrap scrap, Point clickpoint)
+        {
+            var trimWindow = await (SETUNA.Main.Style.StyleUiFactory.TrimDialogFactory?.Invoke(scrap)
+                ?? System.Threading.Tasks.Task.FromResult<SETUNA.Main.Style.StyleUiFactory.ITrimDialog>(null));
             if (trimWindow != null)
             {
                 using (trimWindow)
                 {
-                    if (trimWindow.ShowTrimDialog() == SETUNA.Main.Style.StyleUiFactory.DialogResultOK)
+                    if (await trimWindow.ShowTrimDialog() == SETUNA.Main.Style.StyleUiFactory.DialogResultOK)
                     {
                         using (var bitmap = new Bitmap(trimWindow.TrimRectangle.Width, trimWindow.TrimRectangle.Height, PixelFormat.Format24bppRgb))
                         {

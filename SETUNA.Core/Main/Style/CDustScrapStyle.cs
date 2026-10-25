@@ -13,11 +13,16 @@ namespace SETUNA.Main.Style
         // Token: 0x060002BF RID: 703 RVA: 0x0000F53B File Offset: 0x0000D73B
         public override void Apply(ref IScrap scrap)
         {
-            var result = StyleUiFactory.MessageBox("是否关闭所有截图", "提示", 0x4);
-            if (result == StyleUiFactory.DialogResultYes)
-            {
-                scrap.Manager.CloseAllScrap();
-            }
+            // 对话框异步泵（UI 线程不能同步等待）：确认后回调关闭
+            var manager = scrap.Manager;
+            StyleUiFactory.MessageBox("是否关闭所有截图", "提示", 0x4)
+                .ContinueWith(t =>
+                {
+                    if (t.Result == StyleUiFactory.DialogResultYes)
+                    {
+                        manager?.CloseAllScrap();
+                    }
+                }, System.Threading.Tasks.TaskScheduler.FromCurrentSynchronizationContext());
         }
     }
 }

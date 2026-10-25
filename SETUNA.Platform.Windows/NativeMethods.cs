@@ -138,6 +138,7 @@ namespace SETUNA.Platform.Windows
         public const uint SWP_NOMOVE = 0x0002;
         public const uint SWP_NOACTIVATE = 0x0010;
         public const uint SWP_NOREDRAW = 0x0008;
+        public const uint SWP_NOZORDER = 0x0004;
 
         [DllImport("user32.dll")]
         public static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint crKey, byte bAlpha, uint dwFlags);
@@ -200,6 +201,10 @@ namespace SETUNA.Platform.Windows
         [DllImport("user32.dll")]
         public static extern bool GetMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
 
+        /// <summary>GetMessageW 原生即 int 返回：-1=错误, 0=WM_QUIT, >0=有消息。</summary>
+        [DllImport("user32.dll", EntryPoint = "GetMessageW")]
+        public static extern int GetMessageInt(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
+
         [DllImport("user32.dll")]
         public static extern bool TranslateMessage(ref MSG lpMsg);
 
@@ -208,6 +213,10 @@ namespace SETUNA.Platform.Windows
 
         [DllImport("user32.dll")]
         public static extern void PostQuitMessage(int nExitCode);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool PostThreadMessage(uint threadId, int msg, IntPtr wParam, IntPtr lParam);
 
         [StructLayout(LayoutKind.Sequential)]
         public struct MSG

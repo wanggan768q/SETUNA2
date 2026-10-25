@@ -738,10 +738,6 @@ namespace SETUNA.Main.Option
                         return false;
                     }
                 }
-                else if (SetunaOption.RegisterHotKey(handle, (int)keyID, num, (int)key) == 0)
-                {
-                    return false;
-                }
             }
             return true;
         }
@@ -753,20 +749,7 @@ namespace SETUNA.Main.Option
             {
                 SETUNA.Core.Platform.PlatformServices.Instance.Hotkey.Unregister((SETUNA.Core.Platform.HotkeyId)(int)keyID);
             }
-            else
-            {
-                // 平台服务未装配时退回直连 P/Invoke（旧 WinForms 宿主尚未接入门面）
-                SetunaOption.UnregisterHotKey(handle, (int)keyID);
-            }
         }
-
-        // Token: 0x06000255 RID: 597
-        [DllImport("user32.dll")]
-        private static extern int RegisterHotKey(IntPtr hWnd, int ID, int MOD_KEY, int KEY);
-
-        // Token: 0x06000256 RID: 598
-        [DllImport("user32.dll")]
-        private static extern int UnregisterHotKey(IntPtr hWnd, int ID);
 
         // Token: 0x06000257 RID: 599 RVA: 0x0000CF44 File Offset: 0x0000B144
         public object Clone()

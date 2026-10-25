@@ -89,10 +89,7 @@ namespace SETUNA.Avalonia.Views
 
         public void SetItems(List<AvaloniaClotheslineItem> items)
         {
-            foreach (var old in _items)
-            {
-                old.Thumbnail?.Dispose();
-            }
+            // 缩略图生命周期归控制器（Attach/Update/Remove 各自释放），此处只换引用
             _items.Clear();
             _items.AddRange(items);
             LayoutItems();
@@ -158,7 +155,13 @@ namespace SETUNA.Avalonia.Views
                 return;
             }
             _draggingRope = true;
-            _dragStart = e.GetCurrentPoint(null).Position.ToPixelPoint() - Position;
+            // 屏幕物理坐标 = 窗口物理位置 + 客户区 DIP × 缩放（对齐 ScrapWindow 拖动修正）
+            var scale = RenderScaling > 0 ? RenderScaling : 1.0;
+            var client = e.GetPosition(this);
+            var screenPt = new PixelPoint(
+                Position.X + (int)Math.Round(client.X * scale),
+                Position.Y + (int)Math.Round(client.Y * scale));
+            _dragStart = screenPt - Position;
             e.Pointer.Capture(this);
         }
 
@@ -168,7 +171,11 @@ namespace SETUNA.Avalonia.Views
             {
                 return;
             }
-            var screen = e.GetCurrentPoint(null).Position.ToPixelPoint();
+            var scale = RenderScaling > 0 ? RenderScaling : 1.0;
+            var client = e.GetPosition(this);
+            var screen = new PixelPoint(
+                Position.X + (int)Math.Round(client.X * scale),
+                Position.Y + (int)Math.Round(client.Y * scale));
             Position = new PixelPoint(screen.X - _dragStart.X, screen.Y - _dragStart.Y);
         }
 
@@ -190,7 +197,11 @@ namespace SETUNA.Avalonia.Views
         {
             var screen = (e.Source as Visual) is Visual v ? e.GetPosition(v).ToPixelPoint().ToDrawingPoint() : System.Drawing.Point.Empty;
             // 双击命中直接用窗口客户坐标
-            var clientPt = e.GetPosition(this).ToPixelPoint().ToDrawingPoint();
+            var tapScale = RenderScaling > 0 ? RenderScaling : 1.0;
+            var tapPos = e.GetPosition(this);
+            var clientPt = new DrawingPoint(
+                (int)Math.Round(tapPos.X * tapScale),
+                (int)Math.Round(tapPos.Y * tapScale));
             var index = FindItemIndexAt(_itemRects, clientPt, _scrollOffset, _vertical);
             if (index >= 0 && index < _items.Count)
             {

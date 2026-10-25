@@ -46,6 +46,7 @@ namespace SETUNA.Avalonia
 
         public bool Initialize(Window ownerWindow)
         {
+            Instance = this;
             Log($"Initialize start, base={AppContext.BaseDirectory}");
             _ownerWindow = ownerWindow;
 
@@ -163,20 +164,79 @@ namespace SETUNA.Avalonia
                 scrap.SetClotheslineHanging(false);
             };
 
-            // 贴图增删 → 绳子集合同步
+            // 贴图增删 → 绳子集合同步（对齐旧 Mainform.Scrap_HangingChanged 桥）
             ScrapBook.ScrapAdded += (s, e) =>
             {
-                if (_clotheslineModeActive && e.scrap != null && !e.scrap.IsClotheslineHanging)
+                if (e.scrap != null)
                 {
-                    e.scrap.SetClotheslineHanging(true);
+                    // 挂起状态变化 → 上绳/取下（旧 Scrap_HangingChanged）
+                    e.scrap.ClotheslineHangingChanged += Scrap_HangingChanged;
+                    // 图像/样式变化 → 缩略图刷新（旧 UpdateScrap 订阅）
+                    e.scrap.addScrapImageChangedEvent(ScrapUpdateListener.Instance);
+                    e.scrap.addScrapStyleAppliedEvent(ScrapUpdateListener.Instance);
+
+                    if (_clotheslineModeActive && !e.scrap.IsClotheslineHanging)
+                    {
+                        e.scrap.SetClotheslineHanging(true);
+                    }
                 }
                 RefreshTrayMenu();
             };
             ScrapBook.ScrapRemoved += (s, e) =>
             {
-                _clotheslineController?.RemoveScrap(e.scrap);
+                if (e.scrap != null)
+                {
+                    e.scrap.ClotheslineHangingChanged -= Scrap_HangingChanged;
+                    _clotheslineController?.RemoveScrap(e.scrap);
+                }
                 RefreshTrayMenu();
             };
+        }
+
+        /// <summary>挂起状态变化桥（对齐旧 Mainform.Scrap_HangingChanged）：挂→上绳、取下→摘绳。</summary>
+        private void Scrap_HangingChanged(object sender, ScrapEventArgs e)
+        {
+            if (e.scrap == null)
+            {
+                return;
+            }
+            if (e.scrap.IsClotheslineHanging)
+            {
+                _clotheslineController?.AttachScrap(e.scrap);
+            }
+            else
+            {
+                _clotheslineController?.DetachScrap(e.scrap);
+            }
+        }
+
+        /// <summary>图像/样式变化监听桥：刷新绳上缩略图（对齐旧 Mainform.Scrap_ImageChanged）。</summary>
+        private sealed class ScrapUpdateListener : IScrapImageChangedListener, IScrapStyleAppliedListener
+        {
+            public static readonly ScrapUpdateListener Instance = new ScrapUpdateListener();
+
+            void IScrapImageChangedListener.ScrapImageChanged(object sender, ScrapEventArgs e)
+            {
+                if (e.scrap != null)
+                {
+                    AvaloniaHost.Instance?.UpdateClotheslineScrap(e.scrap);
+                }
+            }
+
+            void IScrapStyleAppliedListener.ScrapStyleApplied(object sender, ScrapEventArgs e)
+            {
+                if (e.scrap != null)
+                {
+                    AvaloniaHost.Instance?.UpdateClotheslineScrap(e.scrap);
+                }
+            }
+        }
+
+        internal static AvaloniaHost Instance { get; private set; }
+
+        internal void UpdateClotheslineScrap(IScrap scrap)
+        {
+            _clotheslineController?.UpdateScrap(scrap);
         }
 
         /// <summary>设置保存后重应用晾绳模式（对齐旧 OptionApply → ApplyClotheslineOption）。</summary>
@@ -234,11 +294,15 @@ namespace SETUNA.Avalonia
                     CImagePngStyleItem i => new Views.Panels.ImagePngStyleItemPanel(i),
                     _ => null,
                 };
-                return panel == null ? null : new PanelDialogHost(panel, _ownerWindow);
+                return panel == null
+                    ? System.Threading.Tasks.Task.FromResult<SETUNA.Main.Style.StyleUiFactory.IStyleItemEditDialog>(null)
+                    : System.Threading.Tasks.Task.FromResult<SETUNA.Main.Style.StyleUiFactory.IStyleItemEditDialog>(new PanelDialogHost(panel, _ownerWindow));
             };
 
             var owner = _ownerWindow;
-            StyleUiFactory.TrimDialogFactory = scrap => new TrimDialogHost(new Views.TrimWindow((IScrap)scrap), owner);
+            StyleUiFactory.TrimDialogFactory = scrap =>
+                System.Threading.Tasks.Task.FromResult<SETUNA.Main.Style.StyleUiFactory.ITrimDialog>(
+                    new TrimDialogHost(new Views.TrimWindow((IScrap)scrap), owner));
 
             StyleUiFactory.CompactFormFactory = (scrap, item, clickPoint) =>
             {
@@ -246,42 +310,31 @@ namespace SETUNA.Avalonia
                 CreateCompactWindow((IScrap)scrap, (CCompactStyleItem)item);
             };
 
-            // 消息框：buttons 对齐 WinForms MessageBoxButtons（0=OK, 4=YesNo, 0x103=YesNoCancel+默认钮2）
-            StyleUiFactory.ShowMessageBox = (text, caption, buttons) =>
+            // 消息框：buttons 对齐 WinForms MessageBoxButtons（0=OK, 4=YesNo, 3=YesNoCancel）
+            // 异步：调用方（Core Apply 循环）await 完成后继续，不在 UI 线程阻塞
+            StyleUiFactory.ShowMessageBox = async (text, caption, buttons) =>
             {
-                var tcs = new TaskCompletionSource<int>();
-                global::Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                {
-                    var dialog = new Views.MessageBoxWindow(caption ?? "SETUNA", text ?? string.Empty, buttons);
-                    var result = dialog.ShowDialog<int?>(_ownerWindow).GetAwaiter().GetResult();
-                    tcs.TrySetResult(result ?? 2);
-                });
-                return tcs.Task.GetAwaiter().GetResult();
+                var dialog = new Views.MessageBoxWindow(caption ?? "SETUNA", text ?? string.Empty, buttons);
+                var result = await dialog.ShowDialog<int?>(_ownerWindow);
+                return result ?? 2;
             };
 
-            // 另存为对话框：返回选定路径，取消 null（对齐旧 SaveFileDialog.ShowDialog 语义）
-            StyleUiFactory.ShowSaveFileDialog = (folder, fileName, filter) =>
+            // 另存为对话框（异步）：返回选定路径，取消 null（对齐旧 SaveFileDialog.ShowDialog 语义）
+            StyleUiFactory.ShowSaveFileDialog = async (folder, fileName, filter) =>
             {
-                var tcs = new TaskCompletionSource<string>();
-                global::Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
+                var storage = global::Avalonia.Controls.TopLevel.GetTopLevel(_ownerWindow)?.StorageProvider;
+                if (storage == null)
                 {
-                    var storage = global::Avalonia.Controls.TopLevel.GetTopLevel(_ownerWindow)?.StorageProvider;
-                    if (storage == null)
-                    {
-                        tcs.TrySetResult(null);
-                        return;
-                    }
-                    // filter "描述|*.ext" → StorageProvider FilePickerFileType
-                    var options = new global::Avalonia.Platform.Storage.FilePickerSaveOptions
-                    {
-                        Title = "保存",
-                        SuggestedFileName = fileName,
-                        DefaultExtension = System.IO.Path.GetExtension(fileName ?? string.Empty).TrimStart('.'),
-                    };
-                    var file = await storage.SaveFilePickerAsync(options);
-                    tcs.TrySetResult(file?.Path.LocalPath);
-                });
-                return tcs.Task.GetAwaiter().GetResult();
+                    return null;
+                }
+                var options = new global::Avalonia.Platform.Storage.FilePickerSaveOptions
+                {
+                    Title = "保存",
+                    SuggestedFileName = fileName,
+                    DefaultExtension = System.IO.Path.GetExtension(fileName ?? string.Empty).TrimStart('.'),
+                };
+                var file = await storage.SaveFilePickerAsync(options);
+                return file?.Path.LocalPath;
             };
 
             StyleUiFactory.PicasaUploadBar = null; // 服务已停，不提供
@@ -289,9 +342,18 @@ namespace SETUNA.Avalonia
 
         private void CreateCompactWindow(IScrap scrap, CCompactStyleItem item)
         {
-            // ponytail: 简化收缩窗（原图隐藏 + 居中缩略），完整收缩窗交互期 6 按需补
-            var compact = new Views.CompactWindow(scrap, item);
-            compact.Show(); // 收缩窗独立于主窗生命周期（MainWindow 已隐藏，不可作 owner）
+            Log($"compact window creating, thread={System.Threading.Thread.CurrentThread.ManagedThreadId}");
+            try
+            {
+                // ponytail: 简化收缩窗（原图隐藏 + 居中缩略），完整收缩窗交互期 6 按需补
+                var compact = new Views.CompactWindow(scrap, item);
+                compact.Show(); // 收缩窗独立于主窗生命周期（MainWindow 已隐藏，不可作 owner）
+                Log("compact window shown");
+            }
+            catch (Exception ex)
+            {
+                Log($"compact window FAILED: {ex.Message}");
+            }
         }
 
         /// <summary>面板窗 → IStyleItemEditDialog 适配。</summary>
@@ -308,26 +370,21 @@ namespace SETUNA.Avalonia
 
             public object EditedStyleItem => ((Views.Panels.StyleItemPanelBase)_window).EditedStyleItem;
 
-            public int ShowEditDialog()
+            public async System.Threading.Tasks.Task<int> ShowEditDialog()
             {
-                // owner 隐藏时退化为独立模态（ShowDialog 需要 visible owner）
-                var result = _owner.IsVisible
-                    ? _window.ShowDialog<int?>(_owner).GetAwaiter().GetResult()
-                    : ShowAsModalStandalone();
-                return result ?? 2;
-            }
-
-            private int ShowAsModalStandalone()
-            {
+                // owner 可见走 ShowDialog；隐藏时退化为独立显示（关闭回调取结果）
+                if (_owner.IsVisible)
+                {
+                    var result = await _window.ShowDialog<int?>(_owner);
+                    return result ?? 2;
+                }
                 var tcs = new TaskCompletionSource<int>();
                 _window.Closed += (s, e) =>
                 {
-                    // StyleItemPanelBase.Close(1/2) 把结果放 Tag；这里读 Dialog 结果约定：
-                    // EditedStyleItem 非 null = OK(1)，否则取消
                     tcs.TrySetResult(((Views.Panels.StyleItemPanelBase)_window).EditedStyleItem != null ? 1 : 2);
                 };
                 _window.Show();
-                return tcs.Task.GetAwaiter().GetResult();
+                return await tcs.Task;
             }
 
             public void Dispose() { }
@@ -351,19 +408,18 @@ namespace SETUNA.Avalonia
 
             public int TrimTop => _window.TrimTop;
 
-            public int ShowTrimDialog()
+            public async System.Threading.Tasks.Task<int> ShowTrimDialog()
             {
-                // TrimWindow.Close(1/2) 无 Tag 通道 → 从 TrimRectangle 判定；独立显示时结果经 Closed 事件
+                // TrimWindow：从 TrimRectangle 判定结果；owner 可见走 ShowDialog，否则独立显示
                 var tcs = new TaskCompletionSource<int>();
                 _window.Closed += (s, e) => tcs.TrySetResult(_window.TrimRectangle.Width > 0 ? 1 : 2);
                 if (_owner.IsVisible)
                 {
-                    var shown = _window.ShowDialog<int?>(_owner);
-                    // ShowDialog 路径下 Closed 已触发 tcs；等待同一结果
+                    await _window.ShowDialog<int?>(_owner);
                     return tcs.Task.GetAwaiter().GetResult();
                 }
                 _window.Show();
-                return tcs.Task.GetAwaiter().GetResult();
+                return await tcs.Task;
             }
 
             public void Dispose() { }
@@ -421,6 +477,13 @@ namespace SETUNA.Avalonia
                 var capture = PlatformServices.Instance.ScreenCapture;
                 var monitor = capture.GetMonitors()[0];
                 var snapshot = capture.CaptureScreen(monitor.Bounds);
+                // 截图含光标（对齐旧 CaptureForm.CopyFromScreen 的 CursorEnabled 语义）
+                if (Option.Setuna.CursorEnabled)
+                {
+                    var cursorPos = capture.GetCursorPosition();
+                    capture.DrawCursorToImage(snapshot, new System.Drawing.Point(
+                        cursorPos.X - monitor.Bounds.X, cursorPos.Y - monitor.Bounds.Y));
+                }
 
                 // 遮罩窗在 UI 线程创建/显示；完成后回调建贴图
                 global::Avalonia.Threading.Dispatcher.UIThread.Post(() =>
