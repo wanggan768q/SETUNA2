@@ -190,22 +190,27 @@ namespace SETUNA.Avalonia
             {
                 return false;
             }
-            // Auto：宽屏横绳、竖屏竖绳
-            var monitor = SETUNA.Core.Platform.PlatformServices.IsRegistered
-                ? SETUNA.Core.Platform.PlatformServices.Instance.ScreenCapture.GetMonitors()[0]
+            // Auto：宽屏横绳、竖屏竖绳；解析屏来源对齐旧版（绳窗所在屏，初建前主屏）
+            var capture = SETUNA.Core.Platform.PlatformServices.IsRegistered
+                ? SETUNA.Core.Platform.PlatformServices.Instance.ScreenCapture
                 : null;
-            var work = monitor?.WorkingArea ?? new Rectangle(0, 0, 1920, 1080);
+            var work = _ropeForm != null
+                ? capture.GetMonitorFromPoint(new Rectangle(_ropeForm.Position.X, _ropeForm.Position.Y, 0, 0).Location).WorkingArea
+                : capture?.GetMonitors()[0].WorkingArea ?? new Rectangle(0, 0, 1920, 1080);
             return work.Height > work.Width;
         }
 
-        /// <summary>默认绳子位置：主屏顶部居中（横）/左侧居中（竖）。</summary>
+        /// <summary>默认绳子位置：横=顶部偏左；竖=右边缘垂直居中（对齐旧版公式，估算尺寸 60x200）。</summary>
         public static Point CalculateDefaultRopePosition(bool vertical, Rectangle workArea)
         {
-            if (vertical)
+            if (!vertical)
             {
-                return new Point(workArea.Left + 8, workArea.Top + workArea.Height / 4);
+                return new Point(workArea.X + 100, workArea.Y + 8);
             }
-            return new Point(workArea.Left + workArea.Width / 4, workArea.Top + 8);
+            const int estimatedWidth = 60;
+            const int estimatedHeight = 200;
+            var height = Math.Min(estimatedHeight, workArea.Height);
+            return new Point(workArea.Right - estimatedWidth - 8, workArea.Y + (workArea.Height - height) / 2);
         }
 
         private void DisposeThumbnails()

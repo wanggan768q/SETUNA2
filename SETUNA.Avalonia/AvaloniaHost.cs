@@ -51,6 +51,7 @@ namespace SETUNA.Avalonia
 
             // 配置：与旧版同一文件（exe 目录 SetunaConfig.xml），零迁移成本
             Option = LoadOption();
+            ScrapUiOptionProvider.Option = Option;
             ScrapUiOptionProvider.Styles = Option.Styles;
             ScrapUiOptionProvider.WClickStyleID = Option.Scrap.WClickStyleID;
             ScrapUiOptionProvider.SubMenuStyles = Option.Scrap.SubMenuStyles;
@@ -64,7 +65,7 @@ namespace SETUNA.Avalonia
             ScrapBookAccessor.RegisterHost(this);
 
             ScrapUiFactory.CreateScrap = () => new ScrapWindow();
-            ScrapUiFactory.StyleListener = () => NullStyleListener.Instance;
+            ScrapUiFactory.StyleListener = () => OptionStyleListener.Instance;
             ScrapUiFactory.MenuListener = () => NullMenuListener.Instance;
 
             HostCommands.RequestCapture = () => Task.Run(() => StartCapture());
@@ -79,6 +80,7 @@ namespace SETUNA.Avalonia
                         ScrapUiOptionProvider.SubMenuStyles = Option.Scrap.SubMenuStyles;
                         ScrapUiOptionProvider.ClotheslineEnabled = Option.ClotheslineEnabled;
                         ApplyHotkeysFromOption();
+                        ApplyClotheslineOption();
                     });
                     editor.Show(_ownerWindow);
                 });
@@ -123,15 +125,31 @@ namespace SETUNA.Avalonia
 
         private void SetupClothesline()
         {
-            if (!Option.ClotheslineEnabled)
+            // 事件订阅常驻（不依赖模式开关，对齐旧 Mainform 常驻订阅语义）
+            EnsureClotheslineController();
+            ApplyClotheslineOption();
+        }
+
+        private void EnsureClotheslineController()
+        {
+            if (_clotheslineController != null)
             {
                 return;
             }
 
             _clotheslineController = new AvaloniaClotheslineController(
-                () => Option.ClotheslineRopePositionSaved
-                    ? Option.ClotheslineRopePosition
-                    : AvaloniaClotheslineController.CalculateDefaultRopePosition(false, PlatformServices.Instance.ScreenCapture.GetMonitors()[0].WorkingArea),
+                () =>
+                {
+                    var workArea = PlatformServices.Instance.ScreenCapture.GetMonitors()[0].WorkingArea;
+                    var vertical = _clotheslineController != null
+                        ? _clotheslineController.ResolveVertical(Option.ClotheslineRopeOrientation)
+                        : Option.ClotheslineRopeOrientation == ClotheslineRopeOrientation.Vertical
+                            || (Option.ClotheslineRopeOrientation == ClotheslineRopeOrientation.Auto
+                                && workArea.Height > workArea.Width);
+                    return Option.ClotheslineRopePositionSaved
+                        ? Option.ClotheslineRopePosition
+                        : AvaloniaClotheslineController.CalculateDefaultRopePosition(vertical, workArea);
+                },
                 position =>
                 {
                     Option.ClotheslineRopePosition = position;
@@ -152,16 +170,45 @@ namespace SETUNA.Avalonia
                 {
                     e.scrap.SetClotheslineHanging(true);
                 }
+                RefreshTrayMenu();
             };
             ScrapBook.ScrapRemoved += (s, e) =>
             {
                 _clotheslineController?.RemoveScrap(e.scrap);
+                RefreshTrayMenu();
             };
+        }
 
-            if (Option.ClotheslineEnabled)
+        /// <summary>设置保存后重应用晾绳模式（对齐旧 OptionApply → ApplyClotheslineOption）。</summary>
+        private void ApplyClotheslineOption()
+        {
+            EnsureClotheslineController();
+
+            if (Option.ClotheslineEnabled && !_clotheslineModeActive)
             {
+                // 开启：统一收绳
                 _clotheslineModeActive = true;
+                foreach (var scrap in ScrapBook)
+                {
+                    if (!scrap.IsClotheslineHanging)
+                    {
+                        scrap.SetClotheslineHanging(true);
+                    }
+                }
                 _clotheslineController.Show();
+            }
+            else if (!Option.ClotheslineEnabled && _clotheslineModeActive)
+            {
+                // 关闭：统一取下恢复展示
+                _clotheslineModeActive = false;
+                foreach (var scrap in ScrapBook)
+                {
+                    if (scrap.IsClotheslineHanging)
+                    {
+                        scrap.SetClotheslineHanging(false);
+                    }
+                }
+                _clotheslineController.Hide();
             }
         }
 
@@ -667,14 +714,56 @@ namespace SETUNA.Avalonia
 
         // ===== 空监听者（期 3 透明度/激活态事件无宿主消费者） =====
 
-        private sealed class NullStyleListener : IScrapStyleListener
+        /// <summary>样式事件监听（对齐旧 Mainform 的 IScrapStyleListener 实现）。</summary>
+        private sealed class OptionStyleListener : IScrapStyleListener
         {
-            public static readonly NullStyleListener Instance = new NullStyleListener();
-            public void ScrapCreated(object sender, ScrapEventArgs e) { }
-            public void ScrapInactived(object sender, ScrapEventArgs e) { }
-            public void ScrapActivated(object sender, ScrapEventArgs e) { }
-            public void ScrapInactiveMouseOver(object sender, ScrapEventArgs e) { }
-            public void ScrapInactiveMouseOut(object sender, ScrapEventArgs e) { }
+            public static readonly OptionStyleListener Instance = new OptionStyleListener();
+
+            public void ScrapCreated(object sender, ScrapEventArgs e)
+            {
+                var option = ScrapUiOptionProvider.Option;
+                var cstyle = option?.FindStyle(option.Scrap.CreateStyleID);
+                cstyle?.Apply(ref e.scrap);
+            }
+
+            public void ScrapInactived(object sender, ScrapEventArgs e)
+            {
+                ApplyInactiveOpacity(e.scrap);
+            }
+
+            public void ScrapActivated(object sender, ScrapEventArgs e)
+            {
+                // 旧版激活时只读配置不做透明度变化
+            }
+
+            public void ScrapInactiveMouseOver(object sender, ScrapEventArgs e)
+            {
+                var option = ScrapUiOptionProvider.Option;
+                if (option == null)
+                {
+                    return;
+                }
+                e.scrap.RollOverOpacity = option.Scrap.MouseOverAlphaChange
+                    ? 1.0 - option.Scrap.MouseOverAlphaValue / 100.0
+                    : e.scrap.ActiveOpacity;
+            }
+
+            public void ScrapInactiveMouseOut(object sender, ScrapEventArgs e)
+            {
+                ApplyInactiveOpacity(e.scrap);
+            }
+
+            private static void ApplyInactiveOpacity(IScrap scrap)
+            {
+                var option = ScrapUiOptionProvider.Option;
+                if (option == null)
+                {
+                    return;
+                }
+                scrap.InactiveOpacity = option.Scrap.InactiveAlphaChange
+                    ? 1.0 - option.Scrap.InactiveAlphaValue / 100.0
+                    : scrap.ActiveOpacity;
+            }
         }
 
         private sealed class NullMenuListener : IScrapMenuListener

@@ -8,6 +8,9 @@ namespace SETUNA.Main
     /// </summary>
     public static class ScrapUiOptionProvider
     {
+        /// <summary>配置本体（透明度/创建样式 ID 等监听行为的数据源；宿主装配时注入）。</summary>
+        public static Option.SetunaOption Option;
+
         /// <summary>用户样式列表（原 Mainform.optSetuna.Styles）。</summary>
         public static IReadOnlyList<CStyle> Styles;
 
