@@ -57,8 +57,10 @@ namespace SETUNA.Avalonia.Views
                     Background = Brushes.Transparent,
                 };
                 Content = border;
+                Width = w;
+                Height = h;
 
-                // 居中于原图
+                // 居中于原图（物理像素）
                 Position = new PixelPoint(
                     scrap.Location.X + (image.Width - w) / 2,
                     scrap.Location.Y + (image.Height - h) / 2);
