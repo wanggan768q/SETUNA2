@@ -32,8 +32,21 @@ namespace SETUNA.Avalonia
         private AvaloniaClotheslineController _clotheslineController;
         private bool _clotheslineModeActive;
 
+        internal static void Log(string message)
+        {
+            try
+            {
+                File.AppendAllText(Path.Combine(Path.GetTempPath(), "setuna-avalonia-debug.log"),
+                    $"{DateTime.Now:HH:mm:ss.fff} {message}{Environment.NewLine}");
+            }
+            catch
+            {
+            }
+        }
+
         public bool Initialize(Window ownerWindow)
         {
+            Log($"Initialize start, base={AppContext.BaseDirectory}");
             _ownerWindow = ownerWindow;
 
             // 配置：与旧版同一文件（exe 目录 SetunaConfig.xml），零迁移成本
@@ -79,7 +92,9 @@ namespace SETUNA.Avalonia
 
             // 恢复缓存贴图
             var cacheManager = CacheManager.Instance;
+            Log($"config resolved, clothesline={Option.ClotheslineEnabled}, styles={Option.Styles.Count}");
             cacheManager.Init(ScrapBook);
+            Log($"cache init done, scraps={ScrapBook.ScrapCount}");
 
             SetupClothesline();
 
@@ -185,7 +200,7 @@ namespace SETUNA.Avalonia
         {
             // ponytail: 简化收缩窗（原图隐藏 + 居中缩略），完整收缩窗交互期 6 按需补
             var compact = new Views.CompactWindow(scrap, item);
-            compact.Show(_ownerWindow);
+            compact.Show(); // 收缩窗独立于主窗生命周期（MainWindow 已隐藏，不可作 owner）
         }
 
         /// <summary>面板窗 → IStyleItemEditDialog 适配。</summary>
@@ -204,8 +219,24 @@ namespace SETUNA.Avalonia
 
             public int ShowEditDialog()
             {
-                var result = _window.ShowDialog<int?>(_owner).GetAwaiter().GetResult();
+                // owner 隐藏时退化为独立模态（ShowDialog 需要 visible owner）
+                var result = _owner.IsVisible
+                    ? _window.ShowDialog<int?>(_owner).GetAwaiter().GetResult()
+                    : ShowAsModalStandalone();
                 return result ?? 2;
+            }
+
+            private int ShowAsModalStandalone()
+            {
+                var tcs = new TaskCompletionSource<int>();
+                _window.Closed += (s, e) =>
+                {
+                    // StyleItemPanelBase.Close(1/2) 把结果放 Tag；这里读 Dialog 结果约定：
+                    // EditedStyleItem 非 null = OK(1)，否则取消
+                    tcs.TrySetResult(((Views.Panels.StyleItemPanelBase)_window).EditedStyleItem != null ? 1 : 2);
+                };
+                _window.Show();
+                return tcs.Task.GetAwaiter().GetResult();
             }
 
             public void Dispose() { }
@@ -231,8 +262,17 @@ namespace SETUNA.Avalonia
 
             public int ShowTrimDialog()
             {
-                var result = _window.ShowDialog<int?>(_owner).GetAwaiter().GetResult();
-                return result ?? 2;
+                // TrimWindow.Close(1/2) 无 Tag 通道 → 从 TrimRectangle 判定；独立显示时结果经 Closed 事件
+                var tcs = new TaskCompletionSource<int>();
+                _window.Closed += (s, e) => tcs.TrySetResult(_window.TrimRectangle.Width > 0 ? 1 : 2);
+                if (_owner.IsVisible)
+                {
+                    var shown = _window.ShowDialog<int?>(_owner);
+                    // ShowDialog 路径下 Closed 已触发 tcs；等待同一结果
+                    return tcs.Task.GetAwaiter().GetResult();
+                }
+                _window.Show();
+                return tcs.Task.GetAwaiter().GetResult();
             }
 
             public void Dispose() { }
@@ -428,20 +468,47 @@ namespace SETUNA.Avalonia
 
         private SetunaOption LoadOption()
         {
+            var path = ResolveConfigPath();
             try
             {
-                if (!File.Exists(SetunaOption.ConfigFile))
+                if (path == null)
                 {
                     return SetunaOption.GetDefaultOption();
                 }
                 var serializer = new System.Xml.Serialization.XmlSerializer(typeof(SetunaOption), SetunaOption.GetAllType());
-                using var stream = new FileStream(SetunaOption.ConfigFile, FileMode.Open);
+                using var stream = new FileStream(path, FileMode.Open);
                 return (SetunaOption)serializer.Deserialize(stream);
             }
             catch
             {
                 return SetunaOption.GetDefaultOption();
             }
+        }
+
+        /// <summary>
+        /// 配置查找：本 exe 目录 → 旧 WinForms 版 bin 目录（两版共存期的兼容回退）。
+        /// </summary>
+        private static string ResolveConfigPath()
+        {
+            if (File.Exists(SetunaOption.ConfigFile))
+            {
+                return SetunaOption.ConfigFile;
+            }
+            var legacy = System.IO.Path.Combine(AppContext.BaseDirectory, @"..\..\..\..\..\SETUNAin\Debug
+et9.0-windows");
+            try
+            {
+                var full = System.IO.Path.GetFullPath(legacy);
+                var candidate = System.IO.Path.Combine(full, "SetunaConfig.xml");
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+            catch
+            {
+            }
+            return null;
         }
 
         // ===== 空监听者（期 3 透明度/激活态事件无宿主消费者） =====
