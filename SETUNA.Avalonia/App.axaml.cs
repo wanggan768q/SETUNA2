@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia;
 using Avalonia.Markup.Xaml;
 
 namespace SETUNA.Avalonia
@@ -23,6 +24,22 @@ namespace SETUNA.Avalonia
                 {
                     Log("host initialize failed");
                     desktop.Shutdown();
+                }
+                else
+                {
+                    // 退出时保存配置 + 停平台服务（对齐旧 Mainform OnClosing → SaveOption）
+                    desktop.ShutdownRequested += (s, e) =>
+                    {
+                        try
+                        {
+                            host.SaveOption();
+                        }
+                        catch (Exception ex)
+                        {
+                            Log($"save on shutdown: {ex.Message}");
+                        }
+                    };
+                    desktop.ShutdownMode = global::Avalonia.Controls.ShutdownMode.OnMainWindowClose;
                 }
             }
 
