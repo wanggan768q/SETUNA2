@@ -387,8 +387,19 @@ namespace SETUNA.Avalonia
             var captureKey = Option.ScrapHotKeys[0];
             if (captureKey != System.Windows.Forms.Keys.None)
             {
-                hotkey.Register(Core.Platform.HotkeyId.Capture, ToSpec(captureKey), () =>
-                    global::Avalonia.Threading.Dispatcher.UIThread.Post(StartCapture));
+                var spec = ToSpec(captureKey);
+                var registered = hotkey.Register(Core.Platform.HotkeyId.Capture, spec, () =>
+                {
+                    Log("hotkey fired");
+                    global::Avalonia.Threading.Dispatcher.UIThread.Post(StartCapture);
+                });
+                Log($"hotkey register={(registered ? "ok" : "FAILED")}, key={captureKey}");
+                if (!registered)
+                {
+                    // 对齐旧版（注册失败仅忽略）；托盘提示用户热键被占用
+                    PlatformServices.Instance.Tray.ShowBalloon("SETUNA",
+                        $"截图热键 {captureKey} 注册失败（可能被其他程序占用）");
+                }
             }
         }
 

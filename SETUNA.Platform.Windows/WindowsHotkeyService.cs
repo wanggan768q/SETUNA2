@@ -48,8 +48,14 @@ namespace SETUNA.Platform.Windows
 
             lock (_lock)
             {
-                if (NativeMethods.RegisterHotKey(_hwnd, (int)id, spec.Modifiers, spec.VirtualKey) == 0)
+                // NULL 窗口 = 线程热键：WM_HOTKEY 投递到服务线程消息队列，
+                // 消息循环按 thread message 分发。
+                // ponytail: 不用 message-only window——本机实测窗口路径 RegisterHotKey
+                // 稳定 1408（原因未明），线程热键等价且少一层窗口依赖。
+                if (NativeMethods.RegisterHotKey(IntPtr.Zero, (int)id, spec.Modifiers, spec.VirtualKey) == 0)
                 {
+                    var err = System.Runtime.InteropServices.Marshal.GetLastWin32Error();
+                    Console.WriteLine($"RegisterHotKey FAILED id={id} mods={spec.Modifiers} vk={spec.VirtualKey} err={err}");
                     return false;
                 }
                 _registrations[id] = new Registration { Spec = spec, Callback = callback };
@@ -66,7 +72,7 @@ namespace SETUNA.Platform.Windows
 
             lock (_lock)
             {
-                if (NativeMethods.UnregisterHotKey(_hwnd, (int)id) != 0)
+                if (NativeMethods.UnregisterHotKey(IntPtr.Zero, (int)id) != 0)
                 {
                     _registrations.Remove(id);
                 }
@@ -89,7 +95,7 @@ namespace SETUNA.Platform.Windows
             {
                 foreach (var id in _registrations.Keys)
                 {
-                    NativeMethods.UnregisterHotKey(_hwnd, (int)id);
+                    NativeMethods.UnregisterHotKey(IntPtr.Zero, (int)id);
                 }
                 _registrations.Clear();
             }
@@ -189,6 +195,12 @@ namespace SETUNA.Platform.Windows
 
             while (NativeMethods.GetMessage(out var msg, IntPtr.Zero, 0, 0))
             {
+                if (msg.hwnd == IntPtr.Zero && msg.message == NativeMethods.WM_HOTKEY)
+                {
+                    // 线程热键（NULL 窗口注册）：直接分发
+                    WndProc(IntPtr.Zero, NativeMethods.WM_HOTKEY, msg.wParam, msg.lParam);
+                    continue;
+                }
                 NativeMethods.TranslateMessage(ref msg);
                 NativeMethods.DispatchMessage(ref msg);
             }
