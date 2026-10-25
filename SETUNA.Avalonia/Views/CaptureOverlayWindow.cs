@@ -43,8 +43,10 @@ namespace SETUNA.Avalonia.Views
             WindowState = WindowState.Normal;
 
             Position = new PixelPoint(monitor.Bounds.X, monitor.Bounds.Y);
-            Width = monitor.Bounds.Width;
-            Height = monitor.Bounds.Height;
+            // 窗口尺寸是 DIP：物理像素 / 缩放，保证遮罩恰好覆盖屏幕
+            var scale = RenderScaling > 0 ? RenderScaling : 1.0;
+            Width = monitor.Bounds.Width / scale;
+            Height = monitor.Bounds.Height / scale;
 
             using var stream = new System.IO.MemoryStream();
             snapshot.Save(stream, System.Drawing.Imaging.ImageFormat.Png);
