@@ -113,18 +113,14 @@ namespace SETUNA.Avalonia
         /// <summary>切换预览（空格触发）：当前源已开 → 关闭；否则打开。</summary>
         public void TogglePreview(IScrap source)
         {
-            if (source == null)
-            {
-                // 鼠标不在缩略图上：预览开着就关闭（第二次空格常见场景）
-                if (IsPreviewOpen)
-                {
-                    ClosePreview();
-                }
-                return;
-            }
-            if (_previewForm != null && _previewForm.IsVisible && ReferenceEquals(_previewSource, source))
+            // 预览开着时，空格一律收起（旧版语义：空格=开关切换，与悬停目标无关）
+            if (IsPreviewOpen)
             {
                 ClosePreview();
+                return;
+            }
+            if (source == null)
+            {
                 return;
             }
             OpenPreview(source);
@@ -154,11 +150,6 @@ namespace SETUNA.Avalonia
             if (_previewForm == null)
             {
                 _previewForm = new ClotheslinePreviewWindow();
-            }
-            if (_previewForm.IsVisible)
-            {
-                // 换源：先收起再重定位（避免顶层窗重创建开销）
-                _previewForm.Hide();
             }
 
             var capture = SETUNA.Core.Platform.PlatformServices.IsRegistered
