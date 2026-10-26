@@ -105,6 +105,9 @@ namespace SETUNA.Avalonia.Views
         /// （对齐旧 ScrapBase.OnFormClosing 的 closePrepare + e.Cancel 语义）。</summary>
         private bool _closePrepare;
 
+        /// <summary>挂绳前的期望可见状态（取下时恢复依据，对齐旧 ClotheslineDesiredVisibility）。</summary>
+        private bool _preHangVisible = true;
+
         private void ScrapWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
             if (_closePrepare)
@@ -384,7 +387,7 @@ namespace SETUNA.Avalonia.Views
         public new void Show()
         {
             SetVisibleCore(true);
-            // 挂起抑制（对齐旧 SetVisibleCore 拦截语义）：挂起中期望可见但不真显示
+            // 挂起门禁：期望可见但挂起中不真显示（取下时按 _visibleFlag 恢复）
             if (!_isClotheslineHanging)
             {
                 base.Show();
@@ -397,12 +400,10 @@ namespace SETUNA.Avalonia.Views
             base.Hide();
         }
 
+        /// <summary>期望状态：不做挂起改写（旧版 SetVisibleCore 的挂起强制置 false 
+        /// 会导致取下后无法恢复——缓存恢复路径 Show 被抑制后 _visibleFlag 丢失）。</summary>
         private void SetVisibleCore(bool value)
         {
-            if (_isClotheslineHanging)
-            {
-                value = false;
-            }
             _visibleFlag = value;
         }
 
@@ -552,8 +553,10 @@ namespace SETUNA.Avalonia.Views
 
             if (hanging)
             {
+                // 记录挂起前的期望可见状态（取下时按此恢复）
+                _preHangVisible = _visibleFlag;
                 _isClotheslineHanging = true;
-                base.Hide(); // SetVisibleCore 拦截路径：期望状态已记在 _visibleFlag
+                base.Hide();
                 if (StyleForm is CompactWindow compact && compact.IsVisible)
                 {
                     compact.Hide();
@@ -562,11 +565,9 @@ namespace SETUNA.Avalonia.Views
             else
             {
                 _isClotheslineHanging = false;
-                AvaloniaHost.Log($"unhang: visibleFlag={_visibleFlag}, pos={Position}, showing={IsVisible}");
-                if (_visibleFlag)
+                if (_preHangVisible || _visibleFlag)
                 {
                     base.Show();
-                    AvaloniaHost.Log($"unhang after Show: showing={IsVisible}, pos={Position}");
                 }
                 if (StyleForm is CompactWindow compactRestore && compactRestore.IsVisible)
                 {
