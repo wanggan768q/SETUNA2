@@ -54,12 +54,14 @@ namespace SETUNA.Avalonia
             }
             EnsureRopeForm().Show();
             UpdateRopeItems();
+            UpdateVisibilitySnapshot();
         }
 
         public void Hide()
         {
             _visible = false;
             _ropeForm?.Hide();
+            UpdateVisibilitySnapshot();
         }
 
         /// <summary>捕获暂停：截图取样前调用，避免绳子进入画面。</summary>
@@ -157,12 +159,14 @@ namespace SETUNA.Avalonia
             }
 
             _previewForm.ShowPreview(_previewImage, workArea, PreviewMode, anchor, source.Location);
+            IsPreviewOpen = true;
         }
 
         public void ClosePreview()
         {
             _previewForm?.ClosePreview();
             _previewSource = null;
+            IsPreviewOpen = false;
         }
 
         /// <summary>预览位置模式（宿主从配置注入）。</summary>
@@ -186,7 +190,10 @@ namespace SETUNA.Avalonia
         /// <summary>鼠标当前位置命中的绳上贴图（无命中 null）。</summary>
         public IScrap FindItemAtCursor()
         {
-            if (_ropeForm == null || !_ropeForm.IsVisible)
+            // 键盘钩子线程调用：禁止触碰 Avalonia Visual（IsVisible 有线程校验），
+            // 用宿主维护的快照状态替代
+            var snapshot = _visibilitySnapshot;
+            if (!snapshot.RopeVisible)
             {
                 return null;
             }
@@ -198,16 +205,27 @@ namespace SETUNA.Avalonia
                 return null;
             }
             var pos = capture.GetCursorPosition();
-            var index = Views.ClotheslineWindow.FindItemIndexAtPublic(
-                pos, _ropeForm.RopeLocation, _ropeForm.IsVertical);
+            var index = Views.ClotheslineWindow.FindItemIndexAtPublic(pos, snapshot.RopeLocation, snapshot.Vertical);
             return index >= 0 && index < _items.Count ? _items[index].Scrap : null;
         }
 
         /// <summary>空格轮次是否消费中（延迟卸钩判定用）。</summary>
         public bool IsSpaceRoundConsuming => _spaceStateMachine.ConsumingRound;
 
-        /// <summary>预览窗是否打开。</summary>
-        public bool IsPreviewOpen => _previewForm != null && _previewForm.IsVisible;
+        /// <summary>绳窗可见性快照（UI 线程更新，钩子线程只读；避免跨线程触碰 Visual）。</summary>
+        private (bool RopeVisible, System.Drawing.Point RopeLocation, bool Vertical) _visibilitySnapshot;
+
+        /// <summary>UI 线程调用：刷新钩子线程用的绳窗可见性快照。</summary>
+        public void UpdateVisibilitySnapshot()
+        {
+            _visibilitySnapshot = (
+                _ropeForm != null && _visible,
+                _ropeForm?.RopeLocation ?? System.Drawing.Point.Empty,
+                IsRopeVertical);
+        }
+
+        /// <summary>预览窗是否打开（UI 线程维护的标志，钩子线程只读）。</summary>
+        public bool IsPreviewOpen { get; private set; }
 
         /// <summary>鼠标是否悬停在预览窗或对应缩略图上（自动关闭/空格判定用）。</summary>
         public bool IsCursorOverPreview(System.Drawing.Point cursorPos)

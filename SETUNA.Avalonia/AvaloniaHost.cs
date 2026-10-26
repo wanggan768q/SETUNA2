@@ -175,6 +175,7 @@ namespace SETUNA.Avalonia
             var hotkey = PlatformServices.IsRegistered ? PlatformServices.Instance.Hotkey : null;
             hotkey?.SetKeyFilter(vk =>
             {
+                // 钩子线程：只读快照/原子标志，禁止触碰 Avalonia Visual（review 教训）
                 if (vk != 0x20 /*VK_SPACE*/ || !_clotheslineModeActive)
                 {
                     return false;
@@ -185,13 +186,8 @@ namespace SETUNA.Avalonia
                     return false; // 修饰键组合不接管
                 }
                 var hit = _clotheslineController.FindItemAtCursor() != null
-                    || (_clotheslineController.IsPreviewOpen && IsCursorOverPreview());
+                    || _clotheslineController.IsPreviewOpen;
                 var consume = _clotheslineController.OnSpaceKey(isDown: true, hit);
-                if (consume)
-                {
-                    // keyup 也需消费（状态机轮次配对）：注册一次性 keyup 过滤由状态机内部处理
-                    // SetKeyFilter 的 filter 会被持续调用，keyup 时 OnSpaceKey(false) 走轮次收尾
-                }
                 return consume;
             });
 
@@ -230,14 +226,6 @@ namespace SETUNA.Avalonia
                 }
                 RefreshTrayMenu();
             };
-        }
-
-        /// <summary>鼠标是否在预览窗上（空格切换判定）。</summary>
-        private bool IsCursorOverPreview()
-        {
-            var capture = PlatformServices.Instance.ScreenCapture;
-            var pos = capture.GetCursorPosition();
-            return _clotheslineController?.IsCursorOverPreview(pos) ?? false;
         }
 
         /// <summary>挂起状态变化桥（对齐旧 Mainform.Scrap_HangingChanged）：挂→上绳、取下→摘绳。</summary>
