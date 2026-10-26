@@ -366,9 +366,21 @@ namespace SETUNA.Avalonia
             Log($"compact window creating, thread={System.Threading.Thread.CurrentThread.ManagedThreadId}");
             try
             {
+                // 挂绳中的贴图不弹收缩窗（对齐旧版：挂起压制收缩窗创建）
+                if (scrap.IsClotheslineHanging)
+                {
+                    Log("compact window suppressed (hanging)");
+                    return;
+                }
                 // 对齐旧 CompactScrap：原图隐藏，缩略窗显示
                 scrap.Visible = false;
                 var compact = new Views.CompactWindow(scrap, item);
+                // 关联 StyleForm：挂绳/取下时跟随隐藏/恢复（对齐旧 ScrapBase.StyleForm）
+                if (scrap is Views.ScrapWindow sw)
+                {
+                    sw.StyleForm = compact;
+                    compact.Closed += (s, e) => { if (sw.StyleForm == compact) sw.StyleForm = null; };
+                }
                 compact.Show(); // 收缩窗独立于主窗生命周期（MainWindow 已隐藏，不可作 owner）
                 Log("compact window shown");
             }
