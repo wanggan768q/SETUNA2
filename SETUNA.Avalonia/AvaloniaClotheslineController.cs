@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using SETUNA.Main;
+using SETUNA.Main.Clothesline;
 using SETUNA.Main.Option;
 using SETUNA.Avalonia.Views;
 
@@ -20,6 +21,11 @@ namespace SETUNA.Avalonia
         private readonly Func<ClotheslineRopeOrientation> _getOrientationSource;
         private readonly List<AvaloniaClotheslineItem> _items = new();
         private ClotheslineWindow _ropeForm;
+        private ClotheslinePreviewWindow _previewForm;
+        private IScrap _previewSource;
+        private global::Avalonia.Media.Imaging.Bitmap _previewImage;
+        private readonly ClotheslineSpaceKeyStateMachine _spaceStateMachine = new();
+        private bool _spaceRoundConsuming;
         private bool _visible;
         private bool _capturePaused;
         private bool _disposed;
@@ -102,8 +108,133 @@ namespace SETUNA.Avalonia
 
         public void RemoveScrap(IScrap scrap) => RemoveItem(scrap);
 
+        /// <summary>切换预览（空格触发）：当前源已开 → 关闭；否则打开。</summary>
+        public void TogglePreview(IScrap source)
+        {
+            if (source == null)
+            {
+                return;
+            }
+            if (_previewForm != null && _previewForm.IsVisible && ReferenceEquals(_previewSource, source))
+            {
+                ClosePreview();
+                return;
+            }
+            OpenPreview(source);
+        }
+
+        private void OpenPreview(IScrap source)
+        {
+            if (_ropeForm == null || !_ropeForm.IsVisible || source?.Image == null)
+            {
+                return;
+            }
+
+            _previewImage?.Dispose();
+            _previewImage = CreateThumbnail(source.Image);
+            if (_previewImage == null)
+            {
+                return;
+            }
+
+            _previewSource = source;
+            if (_previewForm == null)
+            {
+                _previewForm = new ClotheslinePreviewWindow();
+            }
+
+            var capture = SETUNA.Core.Platform.PlatformServices.IsRegistered
+                ? SETUNA.Core.Platform.PlatformServices.Instance.ScreenCapture
+                : null;
+            var workArea = capture?.GetMonitors()[0].WorkingArea ?? new System.Drawing.Rectangle(0, 0, 1920, 1080);
+
+            // 缩略图锚点 = 绳上该项中心；原图位置 = 贴图当前位置
+            var anchor = System.Drawing.Point.Empty;
+            var index = _items.FindIndex(x => ReferenceEquals(x.Scrap, source));
+            if (index >= 0)
+            {
+                anchor = _ropeForm.GetItemScreenRectangleCenter(index);
+            }
+
+            _previewForm.ShowPreview(_previewImage, workArea, PreviewMode, anchor, source.Location);
+        }
+
+        public void ClosePreview()
+        {
+            _previewForm?.ClosePreview();
+            _previewSource = null;
+        }
+
+        /// <summary>预览位置模式（宿主从配置注入）。</summary>
+        public ClotheslinePreviewLocation PreviewMode { get; set; } = ClotheslinePreviewLocation.MonitorCenter;
+
+        /// <summary>空格键状态机驱动（由 IHotkeyService.SetKeyFilter 的过滤器回调）：
+        /// 返回 true 表示消费该键。hit = 鼠标是否悬停在某缩略图上。</summary>
+        public bool OnSpaceKey(bool isDown, bool hit)
+        {
+            var action = isDown ? _spaceStateMachine.OnKeyDown(hit) : _spaceStateMachine.OnKeyUp();
+            if (action == SpaceKeyAction.TogglePreview)
+            {
+                var hitScrap = FindItemAtCursor();
+                // UI 线程切换预览（钩子线程 → UI）
+                global::Avalonia.Threading.Dispatcher.UIThread.Post(() => TogglePreview(hitScrap));
+                return true; // Toggle/Consume 都吞掉
+            }
+            return action == SpaceKeyAction.Consume;
+        }
+
+        /// <summary>鼠标当前位置命中的绳上贴图（无命中 null）。</summary>
+        public IScrap FindItemAtCursor()
+        {
+            if (_ropeForm == null || !_ropeForm.IsVisible)
+            {
+                return null;
+            }
+            var capture = SETUNA.Core.Platform.PlatformServices.IsRegistered
+                ? SETUNA.Core.Platform.PlatformServices.Instance.ScreenCapture
+                : null;
+            if (capture == null)
+            {
+                return null;
+            }
+            var pos = capture.GetCursorPosition();
+            var index = Views.ClotheslineWindow.FindItemIndexAtPublic(
+                pos, _ropeForm.RopeLocation, _ropeForm.IsVertical);
+            return index >= 0 && index < _items.Count ? _items[index].Scrap : null;
+        }
+
+        /// <summary>空格轮次是否消费中（延迟卸钩判定用）。</summary>
+        public bool IsSpaceRoundConsuming => _spaceStateMachine.ConsumingRound;
+
+        /// <summary>预览窗是否打开。</summary>
+        public bool IsPreviewOpen => _previewForm != null && _previewForm.IsVisible;
+
+        /// <summary>鼠标是否悬停在预览窗或对应缩略图上（自动关闭/空格判定用）。</summary>
+        public bool IsCursorOverPreview(System.Drawing.Point cursorPos)
+        {
+            if (_previewForm != null && _previewForm.IsVisible
+                && _previewForm.PreviewScreenRectangle.Contains(cursorPos))
+            {
+                return true;
+            }
+            return FindItemAt(cursorPos) != null;
+        }
+
+        /// <summary>屏幕坐标命中的绳上贴图。</summary>
+        public IScrap FindItemAt(System.Drawing.Point screenPos)
+        {
+            if (_ropeForm == null || !_ropeForm.IsVisible)
+            {
+                return null;
+            }
+            var index = Views.ClotheslineWindow.FindItemIndexAtPublic(
+                screenPos, _ropeForm.RopeLocation, _ropeForm.IsVertical);
+            return index >= 0 && index < _items.Count ? _items[index].Scrap : null;
+        }
+
         public void Clear()
         {
+            ClosePreview();
             DisposeThumbnails();
             _items.Clear();
             UpdateRopeItems();
@@ -228,6 +359,9 @@ namespace SETUNA.Avalonia
                 return;
             }
             _disposed = true;
+            ClosePreview();
+            _previewImage?.Dispose();
+            _previewImage = null;
             DisposeThumbnails();
             _items.Clear();
             _ropeForm?.Close();

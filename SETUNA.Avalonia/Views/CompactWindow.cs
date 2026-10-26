@@ -125,10 +125,17 @@ namespace SETUNA.Avalonia.Views
             e.Pointer.Capture(null);
         }
 
-        /// <summary>双击还原（对齐旧 CompactScrap 双击语义）：
-        /// 先解除晾绳挂起（若挂绳中），再恢复原图显示。</summary>
+        /// <summary>双击：Ctrl+双击 = 挂回绳子；普通双击 = 还原（对齐旧 CompactScrap 双击语义：
+        /// 先解除晾绳挂起（若挂绳中），再恢复原图显示）。</summary>
         private void OnDoubleTapped(object sender, global::Avalonia.Input.TappedEventArgs e)
         {
+            if (e.KeyModifiers.HasFlag(global::Avalonia.Input.KeyModifiers.Control))
+            {
+                // Ctrl+双击 = 挂回绳子（验收需求）
+                scrap.SetClotheslineHanging(true);
+                Close();
+                return;
+            }
             if (scrap.IsClotheslineHanging)
             {
                 // 挂绳中：取下（触发恢复显示），方窗关闭由挂起状态恢复逻辑接管

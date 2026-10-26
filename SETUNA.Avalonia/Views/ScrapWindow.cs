@@ -162,11 +162,18 @@ namespace SETUNA.Avalonia.Views
             e.Pointer.Capture(null);
         }
 
-        /// <summary>双击执行 WClickStyle（默认=收缩；对齐旧 ScrapBase_MouseDoubleClick）。</summary>
+        /// <summary>双击：Ctrl+双击 = 挂回绳子；普通双击 = 执行 WClickStyle
+        /// （默认=收缩；对齐旧 ScrapBase_MouseDoubleClick）。</summary>
         private void ScrapWindow_DoubleTapped(object sender, global::Avalonia.Input.TappedEventArgs e)
         {
             if (_manager == null)
             {
+                return;
+            }
+            if (e.KeyModifiers.HasFlag(global::Avalonia.Input.KeyModifiers.Control))
+            {
+                // Ctrl+双击 = 挂回绳子（验收需求）
+                SetClotheslineHanging(true);
                 return;
             }
             var screen = e.GetPosition(null).ToPixelPoint().ToDrawingPoint();
