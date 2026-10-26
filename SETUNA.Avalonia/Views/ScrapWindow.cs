@@ -562,9 +562,11 @@ namespace SETUNA.Avalonia.Views
             else
             {
                 _isClotheslineHanging = false;
+                AvaloniaHost.Log($"unhang: visibleFlag={_visibleFlag}, pos={Position}, showing={IsVisible}");
                 if (_visibleFlag)
                 {
                     base.Show();
+                    AvaloniaHost.Log($"unhang after Show: showing={IsVisible}, pos={Position}");
                 }
                 if (StyleForm is CompactWindow compactRestore && compactRestore.IsVisible)
                 {

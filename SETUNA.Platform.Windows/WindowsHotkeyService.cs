@@ -225,6 +225,10 @@ namespace SETUNA.Platform.Windows
         /// <summary>在服务线程上执行封送操作（Register/Unregister 真正落地点）。</summary>
         private void ExecuteOp(int message, PendingOp op)
         {
+            if (op == null)
+            {
+                return;
+            }
             switch (message)
             {
                 case WM_APP_REGISTER:
@@ -232,6 +236,11 @@ namespace SETUNA.Platform.Windows
                     {
                         // 与原实现一致：Keys.None 不注册但也算成功
                         op.BoolResult = true;
+                        break;
+                    }
+                    if (_hwnd == IntPtr.Zero)
+                    {
+                        op.BoolResult = false;
                         break;
                     }
                     if (NativeMethods.RegisterHotKey(_hwnd, (int)op.Id, op.Spec.Modifiers, op.Spec.VirtualKey) != 0)
