@@ -55,7 +55,8 @@ namespace SETUNA.Main.StyleItems
                 var encoderParams = await GetEncoderParamsAsync(scrap);
                 if (encoderParams != null)
                 {
-                    text = GetSavePathAsync(scrap).GetAwaiter().GetResult();
+                    // UI 线程不能同步等待对话框任务（Avalonia 文件对话框真异步，GetResult 死锁）
+                    text = await GetSavePathAsync(scrap);
                     SETUNA.Main.Style.HostCommands.ResumeLayerRefresh?.Invoke();
 
                     if (!(text == ""))

@@ -113,6 +113,10 @@ namespace SETUNA.Avalonia
             cacheManager.Init(ScrapBook);
             Log($"cache init done, scraps={ScrapBook.ScrapCount}");
 
+            // 单实例 IPC：第二实例启动转发 → 截图（对齐旧 ExternalStartup 的参数处理精简版）
+            com.clearunit.SingletonIpcChannel.ExternalStartupReceived += (version, args) =>
+                global::Avalonia.Threading.Dispatcher.UIThread.Post(StartCapture);
+
             return true;
         }
 
@@ -173,21 +177,26 @@ namespace SETUNA.Avalonia
 
             // 空格预览：低级键盘过滤（命中缩略图时消费空格切换预览）
             var hotkey = PlatformServices.IsRegistered ? PlatformServices.Instance.Hotkey : null;
-            hotkey?.SetKeyFilter(vk =>
+            hotkey?.SetKeyFilter((vk, isDown) =>
             {
                 // 钩子线程：只读快照/原子标志，禁止触碰 Avalonia Visual（review 教训）
                 if (vk != 0x20 /*VK_SPACE*/ || !_clotheslineModeActive)
                 {
                     return false;
                 }
+                // keyup 只在本轮已接管（状态机记有 down）时进状态机收尾，否则恒放行
+                if (!isDown && !_clotheslineController.IsSpaceRoundActive)
+                {
+                    return false;
+                }
                 var modifier = PlatformServices.Instance.Hotkey.GetModifierState();
-                if (modifier != 0)
+                if (isDown && modifier != 0)
                 {
                     return false; // 修饰键组合不接管
                 }
                 var hit = _clotheslineController.FindItemAtCursor() != null
                     || _clotheslineController.IsPreviewOpen;
-                var consume = _clotheslineController.OnSpaceKey(isDown: true, hit);
+                var consume = _clotheslineController.OnSpaceKey(isDown, hit);
                 return consume;
             });
 
@@ -624,8 +633,8 @@ namespace SETUNA.Avalonia
             }
         }
 
-        /// <summary>全部贴图显示/隐藏切换（对齐旧 Mainform.SetAllScrapsActive 语义）。</summary>
-        private bool _allScrapActive;
+        /// <summary>全部贴图显示/隐藏切换（对齐旧 Mainform.SetAllScrapsActive 语义；初始 true = 首按隐藏全部）。</summary>
+        private bool _allScrapActive = true;
 
         private void ToggleAllScraps()
         {

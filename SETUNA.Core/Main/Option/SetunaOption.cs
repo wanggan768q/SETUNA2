@@ -727,16 +727,11 @@ namespace SETUNA.Main.Option
                     num |= 2;
                 }
                 var key = hkScrap & Keys.KeyCode;
-                if (SETUNA.Core.Platform.PlatformServices.IsRegistered)
+                // 热键绑在传入窗体句柄上（master 语义）：WinForms 宿主 WndProc 收 WM_HOTKEY(0x0312)。
+                // 平台抽象的热键服务注册到 message-only 窗口，WinForms WndProc 收不到，故此处保留直调。
+                if (SetunaOption.RegisterHotKey(handle, (int)keyID, num, (int)key) == 0)
                 {
-                    var registered = SETUNA.Core.Platform.PlatformServices.Instance.Hotkey.Register(
-                        (SETUNA.Core.Platform.HotkeyId)(int)keyID,
-                        new SETUNA.Core.Platform.HotkeySpec(num, (int)key),
-                        null);
-                    if (!registered)
-                    {
-                        return false;
-                    }
+                    return false;
                 }
             }
             return true;
@@ -745,11 +740,14 @@ namespace SETUNA.Main.Option
         // Token: 0x06000254 RID: 596 RVA: 0x0000CF15 File Offset: 0x0000B115
         public void UnregistHotKey(IntPtr handle, HotKeyID keyID)
         {
-            if (SETUNA.Core.Platform.PlatformServices.IsRegistered)
-            {
-                SETUNA.Core.Platform.PlatformServices.Instance.Hotkey.Unregister((SETUNA.Core.Platform.HotkeyId)(int)keyID);
-            }
+            SetunaOption.UnregisterHotKey(handle, (int)keyID);
         }
+
+        [DllImport("user32.dll")]
+        private static extern int RegisterHotKey(IntPtr hWnd, int ID, int MOD_KEY, int KEY);
+
+        [DllImport("user32.dll")]
+        private static extern int UnregisterHotKey(IntPtr hWnd, int ID);
 
         // Token: 0x06000257 RID: 599 RVA: 0x0000CF44 File Offset: 0x0000B144
         public object Clone()

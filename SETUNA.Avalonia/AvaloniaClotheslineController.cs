@@ -254,6 +254,9 @@ namespace SETUNA.Avalonia
         /// <summary>空格轮次是否消费中（延迟卸钩判定用）。</summary>
         public bool IsSpaceRoundConsuming => _spaceStateMachine.ConsumingRound;
 
+        /// <summary>空格轮次是否已见 down（keyup 是否需进状态机收尾；钩子线程只读）。</summary>
+        public bool IsSpaceRoundActive => _spaceStateMachine.RoundActive;
+
         /// <summary>绳窗可见性快照（UI 线程更新，钩子线程只读；避免跨线程触碰 Visual）。</summary>
         private (bool RopeVisible, System.Drawing.Point RopeLocation, bool Vertical) _visibilitySnapshot;
 
