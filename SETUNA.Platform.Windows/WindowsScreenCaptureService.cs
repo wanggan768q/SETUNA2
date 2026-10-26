@@ -48,6 +48,30 @@ namespace SETUNA.Platform.Windows
             return bitmap;
         }
 
+        /// <summary>抓屏诊断：返回左上 64x64 区域的平均亮度（0-255）。全黑=0 附近。</summary>
+        public static int ProbeBrightness(Bitmap snapshot)
+        {
+            try
+            {
+                long sum = 0;
+                var n = 0;
+                for (var y = 0; y < Math.Min(64, snapshot.Height); y += 4)
+                {
+                    for (var x = 0; x < Math.Min(64, snapshot.Width); x += 4)
+                    {
+                        var c = snapshot.GetPixel(x, y);
+                        sum += (c.R + c.G + c.B) / 3;
+                        n++;
+                    }
+                }
+                return n > 0 ? (int)(sum / n) : -1;
+            }
+            catch
+            {
+                return -1;
+            }
+        }
+
         private void FinallyReleaseDc(Rectangle bounds, Bitmap bitmap)
         {
             // GetHdc 已在 using 内 ReleaseHdc 配对（Graphics.Dispose 兜底）；此处仅需标记结构
