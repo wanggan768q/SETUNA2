@@ -62,7 +62,10 @@ namespace SETUNA.Avalonia.Views
             Position = new PixelPoint(location.X - FramePadding, location.Y - FramePadding);
             Width = (display.Width + FramePadding * 2) / scale;
             Height = (display.Height + FramePadding * 2) / scale;
-            Show();
+            if (!IsVisible)
+            {
+                Show(); // 首次显示；之后只 Update 位置/内容（顶层窗 Hide→Show 不可靠）
+            }
         }
 
         public void ClosePreview()
