@@ -104,13 +104,14 @@ namespace SETUNA.Avalonia
             SetupTray();
             SetupHotkeys();
 
+            // 晾绳订阅必须先于缓存恢复（缓存挂起状态依赖事件桥）
+            SetupClothesline();
+
             // 恢复缓存贴图
             var cacheManager = CacheManager.Instance;
             Log($"config resolved, clothesline={Option.ClotheslineEnabled}, styles={Option.Styles.Count}");
             cacheManager.Init(ScrapBook);
             Log($"cache init done, scraps={ScrapBook.ScrapCount}");
-
-            SetupClothesline();
 
             return true;
         }
@@ -180,9 +181,17 @@ namespace SETUNA.Avalonia
                     e.scrap.addScrapImageChangedEvent(ScrapUpdateListener.Instance);
                     e.scrap.addScrapStyleAppliedEvent(ScrapUpdateListener.Instance);
 
-                    if (_clotheslineModeActive && !e.scrap.IsClotheslineHanging)
+                    if (_clotheslineModeActive)
                     {
-                        e.scrap.SetClotheslineHanging(true);
+                        if (!e.scrap.IsClotheslineHanging)
+                        {
+                            e.scrap.SetClotheslineHanging(true);
+                        }
+                        else
+                        {
+                            // 已挂起（缓存恢复路径预设）：事件已过，直接补上绳集合
+                            _clotheslineController?.AttachScrap(e.scrap);
+                        }
                     }
                 }
                 RefreshTrayMenu();
@@ -249,20 +258,27 @@ namespace SETUNA.Avalonia
         {
             EnsureClotheslineController();
 
-            if (Option.ClotheslineEnabled && !_clotheslineModeActive)
+            if (Option.ClotheslineEnabled)
             {
-                // 开启：统一收绳
+                // 开启（或启动即开启）：全量同步——订阅缺失的补订阅、未挂的挂绳、
+                // 已挂但未进绳集合的补 Attach（幂等，AttachScrap 内有 ReferenceEquals 去重）
                 _clotheslineModeActive = true;
                 foreach (var scrap in ScrapBook)
                 {
+                    scrap.ClotheslineHangingChanged -= Scrap_HangingChanged;
+                    scrap.ClotheslineHangingChanged += Scrap_HangingChanged;
                     if (!scrap.IsClotheslineHanging)
                     {
                         scrap.SetClotheslineHanging(true);
                     }
+                    else
+                    {
+                        _clotheslineController.AttachScrap(scrap);
+                    }
                 }
                 _clotheslineController.Show();
             }
-            else if (!Option.ClotheslineEnabled && _clotheslineModeActive)
+            else if (_clotheslineModeActive)
             {
                 // 关闭：统一取下恢复展示
                 _clotheslineModeActive = false;
@@ -710,10 +726,17 @@ namespace SETUNA.Avalonia
         {
             try
             {
-                var path = Path.Combine(AppContext.BaseDirectory, "SETUNA.ico");
-                if (File.Exists(path))
+                var candidates = new[]
                 {
-                    return File.ReadAllBytes(path);
+                    Path.Combine(AppContext.BaseDirectory, "SETUNA.ico"),
+                    Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, @"..\..\..\..\..\SETUNA\bin\Debug\net9.0-windows\SETUNA.ico")),
+                };
+                foreach (var path in candidates)
+                {
+                    if (File.Exists(path))
+                    {
+                        return File.ReadAllBytes(path);
+                    }
                 }
             }
             catch

@@ -31,4 +31,8 @@
     <ProjectReference Include="..\SETUNA.Platform.Windows\SETUNA.Platform.Windows.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="SETUNA.ico" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
