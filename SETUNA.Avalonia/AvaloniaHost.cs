@@ -83,7 +83,8 @@ namespace SETUNA.Avalonia
                         ApplyHotkeysFromOption();
                         ApplyClotheslineOption();
                     });
-                    editor.Show(_ownerWindow);
+                    // MainWindow 已隐藏不可作 owner（review 教训：隐藏 owner 抛 InvalidOperation）
+                    editor.Show();
                 });
             };
             HostCommands.RequestShutdown = () =>
@@ -95,6 +96,10 @@ namespace SETUNA.Avalonia
             };
 
             RegisterStylePanels();
+
+            // UI 线程未处理异常记录（右键"选项"等路径崩溃定位）
+            global::Avalonia.Threading.Dispatcher.UIThread.UnhandledException += (s, e) =>
+                Log($"UIThread UNHANDLED: {e.Exception}");
 
             SetupTray();
             SetupHotkeys();
@@ -345,7 +350,8 @@ namespace SETUNA.Avalonia
             Log($"compact window creating, thread={System.Threading.Thread.CurrentThread.ManagedThreadId}");
             try
             {
-                // ponytail: 简化收缩窗（原图隐藏 + 居中缩略），完整收缩窗交互期 6 按需补
+                // 对齐旧 CompactScrap：原图隐藏，缩略窗显示
+                scrap.Visible = false;
                 var compact = new Views.CompactWindow(scrap, item);
                 compact.Show(); // 收缩窗独立于主窗生命周期（MainWindow 已隐藏，不可作 owner）
                 Log("compact window shown");
@@ -477,6 +483,7 @@ namespace SETUNA.Avalonia
                 var capture = PlatformServices.Instance.ScreenCapture;
                 var monitor = capture.GetMonitors()[0];
                 var snapshot = capture.CaptureScreen(monitor.Bounds);
+                Log($"capture done, bounds={monitor.Bounds}, brightness={SETUNA.Platform.Windows.WindowsScreenCaptureService.ProbeBrightness(snapshot)}");
                 // 截图含光标（对齐旧 CaptureForm.CopyFromScreen 的 CursorEnabled 语义）
                 if (Option.Setuna.CursorEnabled)
                 {

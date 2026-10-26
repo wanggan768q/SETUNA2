@@ -10,6 +10,12 @@ namespace SETUNA.Avalonia
         public override void Initialize()
         {
             AvaloniaXamlLoader.Load(this);
+
+            // 全局异常记录（验收诊断；正常路径不应触发）
+            System.AppDomain.CurrentDomain.UnhandledException += (s, e) =>
+                Log($"AppDomain UNHANDLED: {e.ExceptionObject}");
+            System.Threading.Tasks.TaskScheduler.UnobservedTaskException += (s, e) =>
+                Log($"UnobservedTask: {e.Exception?.GetBaseException().Message}");
         }
 
         public override void OnFrameworkInitializationCompleted()
