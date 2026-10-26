@@ -47,6 +47,8 @@ namespace com.clearunit
             
             if (createdNew)
             {
+                // 第一实例：启动跨进程监听（二次启动经 IPC 激活本实例，master Remoting 语义）
+                SingletonIpcChannel.StartServer();
                 return true; // This is the first instance
             }
             else
@@ -60,18 +62,9 @@ namespace com.clearunit
         // Token: 0x06000471 RID: 1137 RVA: 0x0001CBC8 File Offset: 0x0001ADC8
         private void CreateClient()
         {
-            try
-            {
-                // Signal the existing instance to activate
-                if (SingletonAppRemoteObject.Event != null)
-                {
-                    SingletonAppRemoteObject.Event(_version, _args);
-                }
-            }
-            catch
-            {
-                Console.WriteLine("CreateClient Error");
-            }
+            // 第二实例进程里 Event 恒为 null（listener 只在第一实例注册），
+            // 必须经 IPC 把 version/args 转发给第一实例
+            SingletonIpcChannel.SendStartup(_version, _args);
         }
 
         // Token: 0x040002AF RID: 687

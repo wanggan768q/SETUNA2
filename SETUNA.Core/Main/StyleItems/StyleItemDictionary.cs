@@ -43,6 +43,9 @@ namespace SETUNA.Main.StyleItems
             {
                 list.Add(allStyleItems[i].GetType());
             }
+            // Picasa 服务虽停用，但旧配置（SetunaConfig.xml）可能含该类型节点：
+            // 不进 extraTypes 会导致 XmlSerializer 反序列化整体失败、用户配置全损回退默认
+            list.Add(typeof(CPicasaUploaderStyleItem));
             return list.ToArray();
         }
 

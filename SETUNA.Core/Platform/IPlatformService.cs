@@ -17,8 +17,10 @@ namespace SETUNA.Core.Platform
         /// <summary>
         /// 低级键盘过滤器（晾绳空格钩子）。返回 true 表示消费该键。
         /// 传 null 清除过滤。修饰键状态由调用方通过 GetModifierState 查询。
+        /// 回调参数 (virtualKey, isDown)：keydown 与 keyup 都会送达（原 ClotheslineSpaceKeyHook
+        /// 的轮次配对语义要求状态机收到 keyup 才能结束本轮，只喂 down 会导致二次空格失效）。
         /// </summary>
-        void SetKeyFilter(Func<int, bool> virtualKeyFilter);
+        void SetKeyFilter(Func<int, bool, bool> virtualKeyFilter);
 
         /// <summary>查询当前修饰键按下状态（返回 MOD_* 位掩码：1=Alt 2=Ctrl 4=Shift 8=Win）。</summary>
         int GetModifierState();

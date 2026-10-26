@@ -26,6 +26,9 @@ namespace SETUNA.Main.Clothesline
         /// <summary>是否正处已消费 down、等待配对 keyup 的轮次（卸钩配对判定）。</summary>
         public bool ConsumingRound => _downSeen && _downConsumed;
 
+        /// <summary>本轮是否已见 down（含未命中轮次；keyup 收尾判定用）。</summary>
+        public bool RoundActive => _downSeen;
+
         public SpaceKeyAction OnKeyDown(bool hit)
         {
             if (!_downSeen)

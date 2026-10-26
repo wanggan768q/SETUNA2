@@ -32,7 +32,7 @@ namespace SETUNA.Platform.Windows
             public HotkeyId Id;
             public HotkeySpec Spec;
             public Action Callback;
-            public Func<int, bool> KeyFilter;
+            public Func<int, bool, bool> KeyFilter;
             public bool BoolResult;
             public readonly ManualResetEvent Done = new ManualResetEvent(false);
         }
@@ -52,7 +52,7 @@ namespace SETUNA.Platform.Windows
         // 低级键盘钩子
         private IntPtr _hookHandle;
         private NativeMethods.LowLevelKeyboardProc _hookProc;
-        private volatile Func<int, bool> _keyFilter;
+        private volatile Func<int, bool, bool> _keyFilter;
 
         public bool Register(HotkeyId id, HotkeySpec spec, Action callback)
         {
@@ -86,7 +86,7 @@ namespace SETUNA.Platform.Windows
             MarshalToServiceThread(WM_APP_UNREGISTER_ALL, new PendingOp(), wait: false);
         }
 
-        public void SetKeyFilter(Func<int, bool> virtualKeyFilter)
+        public void SetKeyFilter(Func<int, bool, bool> virtualKeyFilter)
         {
             MarshalToServiceThread(WM_APP_SET_KEY_FILTER, new PendingOp { KeyFilter = virtualKeyFilter }, wait: false);
         }
@@ -328,11 +328,16 @@ namespace SETUNA.Platform.Windows
                 var msg = wParam.ToInt64();
                 const int WM_KEYDOWN = 0x0100;
                 const int WM_SYSKEYDOWN = 0x0104;
+                const int WM_KEYUP = 0x0101;
+                const int WM_SYSKEYUP = 0x0105;
 
-                // 仅在 down 上判定消费（up 恒放行，配对语义由状态机消费方维护）
-                if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN)
+                // down/up 都进过滤器：状态机轮次配对依赖 keyup 结束本轮（原 ClotheslineSpaceKeyHook 语义），
+                // 只喂 down 会让 OnKeyUp 永不执行、二次空格被当作 repeat 吞掉（迁移回归 C1）
+                var isDown = msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN;
+                var isUp = msg == WM_KEYUP || msg == WM_SYSKEYUP;
+                if (isDown || isUp)
                 {
-                    if (filter(vk))
+                    if (filter(vk, isDown))
                     {
                         return (IntPtr)1;
                     }
