@@ -493,6 +493,9 @@ namespace SETUNA.Avalonia.Views
         }
 
         public CacheItem CacheItem { get => _cacheItem; set => _cacheItem = value; }
+
+        /// <summary>关联的收缩窗（对齐旧 ScrapBase.StyleForm）：挂绳一并隐藏，取下一并恢复。</summary>
+        public global::Avalonia.Controls.Window StyleForm { set; get; }
         public int StyleID => _styleID;
         public DrawingPoint StyleClickPoint => _styleClickPoint;
 
@@ -551,6 +554,10 @@ namespace SETUNA.Avalonia.Views
             {
                 _isClotheslineHanging = true;
                 base.Hide(); // SetVisibleCore 拦截路径：期望状态已记在 _visibleFlag
+                if (StyleForm is CompactWindow compact && compact.IsVisible)
+                {
+                    compact.Hide();
+                }
             }
             else
             {
@@ -558,6 +565,10 @@ namespace SETUNA.Avalonia.Views
                 if (_visibleFlag)
                 {
                     base.Show();
+                }
+                if (StyleForm is CompactWindow compactRestore && compactRestore.IsVisible)
+                {
+                    compactRestore.Show();
                 }
             }
 
