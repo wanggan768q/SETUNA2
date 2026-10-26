@@ -52,8 +52,9 @@ namespace SETUNA.Avalonia.Views
                 return;
             }
 
-            _imageControl.Source = image;
-            var display = CalculateDisplayRectangle(image.PixelSize.Width, image.PixelSize.Height, workArea);
+            var converted = image;
+            _imageControl.Source = converted;
+            var display = CalculateDisplayRectangle(converted.PixelSize.Width, converted.PixelSize.Height, workArea);
             var location = CalculatePreviewLocation(mode,
                 new System.Drawing.Size(display.Width, display.Height), workArea, thumbnailAnchor, originalLocation);
 

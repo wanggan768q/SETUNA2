@@ -134,13 +134,38 @@ namespace SETUNA.Avalonia
             }
 
             _previewImage?.Dispose();
-            // 预览显示原始图（旧版语义：原始大小适配屏幕，非缩略图）
-            using (var stream = new System.IO.MemoryStream())
+            // 预览显示原始图（旧版语义）。像素直拷（毫秒级）替代 PNG 编码（秒级卡顿）
+            var gdi = (System.Drawing.Bitmap)source.Image;
+            var wb = new global::Avalonia.Media.Imaging.WriteableBitmap(
+                new global::Avalonia.PixelSize(gdi.Width, gdi.Height),
+                new global::Avalonia.Vector(96, 96),
+                global::Avalonia.Platform.PixelFormat.Bgra8888);
+            using (var lockFrame = wb.Lock())
             {
-                ((System.Drawing.Bitmap)source.Image).Save(stream, System.Drawing.Imaging.ImageFormat.Png);
-                stream.Position = 0;
-                _previewImage = new global::Avalonia.Media.Imaging.Bitmap(stream);
+                var bmpData = gdi.LockBits(
+                    new System.Drawing.Rectangle(0, 0, gdi.Width, gdi.Height),
+                    System.Drawing.Imaging.ImageLockMode.ReadOnly,
+                    System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                try
+                {
+                    unsafe
+                    {
+                        var stride = Math.Min(bmpData.Stride, lockFrame.RowBytes);
+                        for (var y = 0; y < gdi.Height; y++)
+                        {
+                            Buffer.MemoryCopy(
+                                (void*)(bmpData.Scan0 + y * bmpData.Stride),
+                                (void*)(lockFrame.Address + y * lockFrame.RowBytes),
+                                lockFrame.RowBytes, stride);
+                        }
+                    }
+                }
+                finally
+                {
+                    gdi.UnlockBits(bmpData);
+                }
             }
+            _previewImage = wb;
             if (_previewImage == null)
             {
                 return;
