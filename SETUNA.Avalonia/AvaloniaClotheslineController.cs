@@ -115,6 +115,11 @@ namespace SETUNA.Avalonia
         {
             if (source == null)
             {
+                // 鼠标不在缩略图上：预览开着就关闭（第二次空格常见场景）
+                if (IsPreviewOpen)
+                {
+                    ClosePreview();
+                }
                 return;
             }
             if (_previewForm != null && _previewForm.IsVisible && ReferenceEquals(_previewSource, source))
@@ -133,7 +138,13 @@ namespace SETUNA.Avalonia
             }
 
             _previewImage?.Dispose();
-            _previewImage = CreateThumbnail(source.Image);
+            // 预览显示原始图（旧版语义：原始大小适配屏幕，非缩略图）
+            using (var stream = new System.IO.MemoryStream())
+            {
+                ((System.Drawing.Bitmap)source.Image).Save(stream, System.Drawing.Imaging.ImageFormat.Png);
+                stream.Position = 0;
+                _previewImage = new global::Avalonia.Media.Imaging.Bitmap(stream);
+            }
             if (_previewImage == null)
             {
                 return;
@@ -143,6 +154,11 @@ namespace SETUNA.Avalonia
             if (_previewForm == null)
             {
                 _previewForm = new ClotheslinePreviewWindow();
+            }
+            if (_previewForm.IsVisible)
+            {
+                // 换源：先收起再重定位（避免顶层窗重创建开销）
+                _previewForm.Hide();
             }
 
             var capture = SETUNA.Core.Platform.PlatformServices.IsRegistered
