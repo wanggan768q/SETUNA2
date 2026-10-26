@@ -57,8 +57,12 @@ namespace SETUNA.Avalonia.Views
         private bool _draggingRope;
         private PixelPoint _dragStart;
 
+        private static ClotheslineWindow InstanceRef;
+
         public ClotheslineWindow()
         {
+            InstanceRef = this;
+            InstanceRef = this;
             SystemDecorations = SystemDecorations.None;
             TransparencyLevelHint = new[] { WindowTransparencyLevel.Transparent };
             Background = Brushes.Transparent;
@@ -143,6 +147,32 @@ namespace SETUNA.Avalonia.Views
         {
             var client = screenPoint - new global::Avalonia.Point(Position.X, Position.Y);
             return FindItemIndexAt(_itemRects, new DrawingPoint((int)client.X, (int)client.Y), _scrollOffset, _vertical);
+        }
+
+        /// <summary>屏幕坐标 → 命中条目索引（静态包装：供空格钩子线程做命中检测）。</summary>
+        public static int FindItemIndexAtPublic(DrawingPoint screenPoint, DrawingPoint ropeLocation, bool vertical)
+        {
+            return InstanceRef?.FindItemIndexAtScreen(screenPoint, ropeLocation, vertical) ?? -1;
+        }
+
+        /// <summary>按屏幕坐标命中（考虑滚动偏移）。</summary>
+        public int FindItemIndexAtScreen(DrawingPoint screenPoint, DrawingPoint ropeLocation, bool vertical)
+        {
+            var client = new DrawingPoint(screenPoint.X - ropeLocation.X, screenPoint.Y - ropeLocation.Y);
+            return FindItemIndexAt(_itemRects, client, _scrollOffset, vertical);
+        }
+
+        /// <summary>指定条目照片矩形的屏幕中心（含滚动偏移；供预览锚点定位）。</summary>
+        public DrawingPoint GetItemScreenRectangleCenter(int index)
+        {
+            if (index < 0 || index >= _itemRects.Count)
+            {
+                return DrawingPoint.Empty;
+            }
+            var rect = _itemRects[index];
+            var x = _vertical ? rect.X : rect.X - _scrollOffset;
+            var y = _vertical ? rect.Y - _scrollOffset : rect.Y;
+            return new DrawingPoint(x + rect.Width / 2, y + rect.Height / 2);
         }
 
         // ===== 交互 =====

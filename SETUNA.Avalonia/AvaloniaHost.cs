@@ -169,6 +169,31 @@ namespace SETUNA.Avalonia
             {
                 scrap.SetClotheslineHanging(false);
             };
+            _clotheslineController.PreviewMode = Option.ClotheslinePreviewLocation;
+
+            // 空格预览：低级键盘过滤（命中缩略图时消费空格切换预览）
+            var hotkey = PlatformServices.IsRegistered ? PlatformServices.Instance.Hotkey : null;
+            hotkey?.SetKeyFilter(vk =>
+            {
+                if (vk != 0x20 /*VK_SPACE*/ || !_clotheslineModeActive)
+                {
+                    return false;
+                }
+                var modifier = PlatformServices.Instance.Hotkey.GetModifierState();
+                if (modifier != 0)
+                {
+                    return false; // 修饰键组合不接管
+                }
+                var hit = _clotheslineController.FindItemAtCursor() != null
+                    || (_clotheslineController.IsPreviewOpen && IsCursorOverPreview());
+                var consume = _clotheslineController.OnSpaceKey(isDown: true, hit);
+                if (consume)
+                {
+                    // keyup 也需消费（状态机轮次配对）：注册一次性 keyup 过滤由状态机内部处理
+                    // SetKeyFilter 的 filter 会被持续调用，keyup 时 OnSpaceKey(false) 走轮次收尾
+                }
+                return consume;
+            });
 
             // 贴图增删 → 绳子集合同步（对齐旧 Mainform.Scrap_HangingChanged 桥）
             ScrapBook.ScrapAdded += (s, e) =>
@@ -205,6 +230,14 @@ namespace SETUNA.Avalonia
                 }
                 RefreshTrayMenu();
             };
+        }
+
+        /// <summary>鼠标是否在预览窗上（空格切换判定）。</summary>
+        private bool IsCursorOverPreview()
+        {
+            var capture = PlatformServices.Instance.ScreenCapture;
+            var pos = capture.GetCursorPosition();
+            return _clotheslineController?.IsCursorOverPreview(pos) ?? false;
         }
 
         /// <summary>挂起状态变化桥（对齐旧 Mainform.Scrap_HangingChanged）：挂→上绳、取下→摘绳。</summary>
