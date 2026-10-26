@@ -113,10 +113,18 @@ namespace SETUNA.Avalonia
         /// <summary>切换预览（空格触发）：当前源已开 → 关闭；否则打开。</summary>
         public void TogglePreview(IScrap source)
         {
-            // 预览开着时，空格一律收起（旧版语义：空格=开关切换，与悬停目标无关）
+            AvaloniaHost.Log($"toggle: source={(source?.Name ?? "null")}, previewOpen={IsPreviewOpen}");
             if (IsPreviewOpen)
             {
-                ClosePreview();
+                // 预览开着：命中另一张 → 切换；命中同一张/未命中 → 收起
+                if (source != null && !ReferenceEquals(_previewSource, source))
+                {
+                    OpenPreview(source);
+                }
+                else
+                {
+                    ClosePreview();
+                }
                 return;
             }
             if (source == null)
@@ -130,6 +138,7 @@ namespace SETUNA.Avalonia
         {
             if (_ropeForm == null || !_ropeForm.IsVisible || source?.Image == null)
             {
+                AvaloniaHost.Log($"open blocked: ropeNull={_ropeForm == null}, imgNull={source?.Image == null}");
                 return;
             }
 
@@ -192,6 +201,7 @@ namespace SETUNA.Avalonia
 
             _previewForm.ShowPreview(_previewImage, workArea, PreviewMode, anchor, source.Location);
             IsPreviewOpen = true;
+            AvaloniaHost.Log($"open done: anchor={anchor}, mode={PreviewMode}");
         }
 
         public void ClosePreview()
