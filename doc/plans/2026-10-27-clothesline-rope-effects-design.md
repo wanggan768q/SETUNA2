@@ -57,7 +57,8 @@
   public enum EdgeRevealAction { None, Reveal, Retract }
   public static EdgeRevealAction DecideEdgeReveal(
       bool ropeVisible, bool capturePaused, bool edgeZoneHit,
-      bool pointerNearRope, bool fullscreenCovers, TimeSpan awayDuration)
+      bool pointerNearRope, bool fullscreenCovers, TimeSpan awayDuration,
+      bool withinManualGrace)
   ```
   呼出判定输入由轮询 tick 组装；时序状态（离开计时）留 Controller 字段。
 - **门禁优先级**：手动呼出（托盘/热键 Show）后 3 秒内轮询不收起（用户主动行为优先）；`SetCapturePaused` 期间轮询只呼出检查跳过。
@@ -72,7 +73,7 @@
 ## 测试
 
 - `SETUNATests`（纯函数，STA 套件外即可跑）：
-  - `DecideEdgeReveal`：呼出带命中→Reveal；未呼出带+超时→Retract；capturePaused→None；前台全屏→None；手动呼出宽限→None
+  - `DecideEdgeReveal`：呼出带命中→Reveal；未呼出带+超时→Retract；capturePaused→None；前台全屏→None；手动呼出宽限内→None
   - 摆动：`SwingAngle(amplitude, phase, t)` 与振幅逼近纯函数若干断言
 - 视觉/动画/淡入淡出：人工验收（现有 build-avalonia.bat 流程）。
 
