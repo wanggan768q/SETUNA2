@@ -121,5 +121,20 @@ namespace SETUNATests
             Assert.IsFalse(ClotheslineEdgeGeometry.CoversWorkArea(new Rectangle(100, 100, 800, 600), work));
             Assert.IsFalse(ClotheslineEdgeGeometry.CoversWorkArea(Rectangle.Empty, work));
         }
+
+        [TestMethod]
+        public void SetunaOption_EdgeReveal_DefaultsTrue()
+        {
+            // 旧配置无该字段 → 字段初始化器生效（XmlSerializer 缺节点保留初始化值）
+            Assert.IsTrue(new SETUNA.Main.Option.SetunaOption().ClotheslineEdgeReveal);
+        }
+
+        [TestMethod]
+        public void SetunaOption_Clone_PreservesEdgeReveal()
+        {
+            var option = new SETUNA.Main.Option.SetunaOption { ClotheslineEdgeReveal = false };
+            var clone = (SETUNA.Main.Option.SetunaOption)option.Clone();
+            Assert.IsFalse(clone.ClotheslineEdgeReveal);
+        }
     }
 }

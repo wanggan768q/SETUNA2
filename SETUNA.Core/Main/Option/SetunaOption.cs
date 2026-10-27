@@ -763,7 +763,8 @@ namespace SETUNA.Main.Option
                 ClotheslinePreviewLocation = ClotheslinePreviewLocation,
                 ClotheslineRopePosition = ClotheslineRopePosition,
                 ClotheslineRopePositionSaved = ClotheslineRopePositionSaved,
-                ClotheslineRopeOrientation = ClotheslineRopeOrientation
+                ClotheslineRopeOrientation = ClotheslineRopeOrientation,
+                ClotheslineEdgeReveal = ClotheslineEdgeReveal
             };
             for (var i = 0; i < Styles.Count; i++)
             {
@@ -822,6 +823,9 @@ namespace SETUNA.Main.Option
 
         /// <summary>绳子方向（Auto 按屏幕宽高比解析）。</summary>
         public ClotheslineRopeOrientation ClotheslineRopeOrientation;
+
+        /// <summary>移到屏幕边缘自动呼出绳子（晾绳模式，PicRope 交互）。</summary>
+        public bool ClotheslineEdgeReveal = true;
 
         // Token: 0x0200003D RID: 61
         public class ScrapOptionData
