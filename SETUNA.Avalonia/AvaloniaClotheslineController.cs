@@ -84,6 +84,8 @@ namespace SETUNA.Avalonia
             }
             else if (_visible)
             {
+                // 捕获暂停可能打断了淡出，恢复时归位透明度，避免半透明常驻
+                _ropeForm?.SetOpacityImmediate(1.0);
                 EnsureRopeForm().Show();
                 UpdateRopeItems();
                 UpdateVisibilitySnapshot();
@@ -320,11 +322,13 @@ namespace SETUNA.Avalonia
             var cursor = capture.GetCursorPosition();
             var ropeLoc = _ropeForm != null ? _ropeForm.RopeLocation : System.Drawing.Point.Empty;
             var vertical = IsRopeVertical;
-            var work = capture.GetMonitorFromPoint(ropeLoc).WorkingArea;
+            var monitor = capture.GetMonitorFromPoint(ropeLoc);
+            var work = monitor.WorkingArea;
             var edgeZoneHit = ClotheslineEdgeGeometry.IsEdgeZoneHit(cursor, work, vertical);
             var pointerNearRope = _ropeForm != null && IsPointerNearRopeForm(cursor);
             var fg = SETUNA.Core.Platform.PlatformServices.Instance.Window.GetForegroundWindow();
-            var fullscreenCovers = fg != null && ClotheslineEdgeGeometry.CoversWorkArea(fg.Bounds, work);
+            // 最大化窗口含隐形边框会覆盖工作区但盖不住整屏，用整屏矩形判定
+            var fullscreenCovers = fg != null && ClotheslineEdgeGeometry.CoversWorkArea(fg.Bounds, monitor.Bounds);
 
             if (edgeZoneHit || pointerNearRope)
             {

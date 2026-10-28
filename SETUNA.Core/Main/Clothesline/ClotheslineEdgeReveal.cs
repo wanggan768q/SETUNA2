@@ -56,15 +56,15 @@ namespace SETUNA.Main.Clothesline
         /// <summary>呼出触发带宽度（物理像素）。</summary>
         public const int EdgeZonePx = 4;
 
-        /// <summary>横绳：光标在绳所在屏顶部触发带内且 X 在工作区范围；竖绳：右缘触发带。</summary>
+        /// <summary>横绳：光标在绳所在屏顶部触发带内且 X 在工作区范围；竖绳：右缘触发带。对侧边界防止相邻堆叠显示器误命中。</summary>
         public static bool IsEdgeZoneHit(Point cursor, Rectangle workArea, bool vertical)
         {
             if (vertical)
             {
-                return cursor.X >= workArea.Right - EdgeZonePx
+                return cursor.X >= workArea.Right - EdgeZonePx && cursor.X <= workArea.Right
                     && cursor.Y >= workArea.Top && cursor.Y <= workArea.Bottom;
             }
-            return cursor.Y <= workArea.Top + EdgeZonePx
+            return cursor.Y >= workArea.Top && cursor.Y <= workArea.Top + EdgeZonePx
                 && cursor.X >= workArea.Left && cursor.X <= workArea.Right;
         }
 
