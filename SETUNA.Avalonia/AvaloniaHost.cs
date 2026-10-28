@@ -359,8 +359,9 @@ namespace SETUNA.Avalonia
 
             StyleUiFactory.CompactFormFactory = (scrap, item, clickPoint) =>
             {
-                // 收缩窗：期 4 简化版——隐藏原图 + 50×50 局部缩略窗
-                CreateCompactWindow((IScrap)scrap, (CCompactStyleItem)item);
+                // 收缩窗：对齐旧 CompactScrap——隐藏原图 + 以点击点为中心的 50×50 裁剪窗
+                CreateCompactWindow((IScrap)scrap, (CCompactStyleItem)item,
+                    (System.Drawing.Point)clickPoint);
             };
 
             // 消息框：buttons 对齐 WinForms MessageBoxButtons（0=OK, 4=YesNo, 3=YesNoCancel）
@@ -393,7 +394,7 @@ namespace SETUNA.Avalonia
             StyleUiFactory.PicasaUploadBar = null; // 服务已停，不提供
         }
 
-        private void CreateCompactWindow(IScrap scrap, CCompactStyleItem item)
+        private void CreateCompactWindow(IScrap scrap, CCompactStyleItem item, System.Drawing.Point clickPoint)
         {
             Log($"compact window creating, thread={System.Threading.Thread.CurrentThread.ManagedThreadId}");
             try
@@ -406,7 +407,7 @@ namespace SETUNA.Avalonia
                 }
                 // 对齐旧 CompactScrap：原图隐藏，缩略窗显示
                 scrap.Visible = false;
-                var compact = new Views.CompactWindow(scrap, item);
+                var compact = new Views.CompactWindow(scrap, item, clickPoint);
                 // 关联 StyleForm：挂绳/取下时跟随隐藏/恢复（对齐旧 ScrapBase.StyleForm）
                 if (scrap is Views.ScrapWindow sw)
                 {
