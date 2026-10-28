@@ -62,7 +62,6 @@ namespace SETUNA.Avalonia.Views
         public ClotheslineWindow()
         {
             InstanceRef = this;
-            InstanceRef = this;
             SystemDecorations = SystemDecorations.None;
             TransparencyLevelHint = new[] { WindowTransparencyLevel.Transparent };
             Background = Brushes.Transparent;
@@ -406,7 +405,7 @@ namespace SETUNA.Avalonia.Views
                 var drawScale = RenderScaling > 0 ? RenderScaling : 1.0;
                 var avaloniaRect = new Rect(rx / drawScale, ry / drawScale, rect.Width / drawScale, rect.Height / drawScale);
                 // 白框投影（环境光方向固定，不随摆动转）
-                context.FillRectangle(shadowBrush, new Rect(avaloniaRect.X + 2, avaloniaRect.Y + 3, avaloniaRect.Width, avaloniaRect.Height));
+                context.FillRectangle(shadowBrush, new Rect(avaloniaRect.X + 6, avaloniaRect.Y + 7, avaloniaRect.Width, avaloniaRect.Height));
                 context.DrawRectangle(null, framePen, avaloniaRect);
 
                 var thumbnail = _items[i].Thumbnail;
@@ -474,7 +473,7 @@ namespace SETUNA.Avalonia.Views
 
             context.FillRectangle(bodyBrush, bodyRect, 2);
 
-            // 中缝：沿夹子长轴中线
+            // 中缝：沿夹子短轴方向贯穿长轴中线
             if (_vertical)
             {
                 var midX = bodyRect.X + bodyRect.Width / 2;
@@ -488,7 +487,7 @@ namespace SETUNA.Avalonia.Views
                     new global::Avalonia.Point(bodyRect.Right - 2, midY));
             }
 
-            // 弹簧箍：短轴方向两条（约 1/4 与 3/4 长轴处）
+            // 弹簧箍：两条位于长轴 1/3 与 2/3 处、沿短轴方向
             for (var i = 1; i <= 2; i++)
             {
                 var f = i / 3.0;
