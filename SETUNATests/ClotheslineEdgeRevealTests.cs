@@ -103,6 +103,8 @@ namespace SETUNATests
             Assert.IsFalse(ClotheslineEdgeGeometry.IsEdgeZoneHit(new Point(500, 10), work, vertical: false));
             // 工作区 X 范围外不算
             Assert.IsFalse(ClotheslineEdgeGeometry.IsEdgeZoneHit(new Point(-5, 2), work, vertical: false));
+            // 对侧边界：Y 在 Top 之上不命中（相邻堆叠显示器防误判）
+            Assert.IsFalse(ClotheslineEdgeGeometry.IsEdgeZoneHit(new Point(500, -3), work, vertical: false));
         }
 
         [TestMethod]
@@ -111,6 +113,8 @@ namespace SETUNATests
             var work = new Rectangle(0, 0, 1920, 1040);
             Assert.IsTrue(ClotheslineEdgeGeometry.IsEdgeZoneHit(new Point(1918, 500), work, vertical: true));
             Assert.IsFalse(ClotheslineEdgeGeometry.IsEdgeZoneHit(new Point(1900, 500), work, vertical: true));
+            // 对侧边界：X 超过 Right 不命中（相邻堆叠显示器防误判）
+            Assert.IsFalse(ClotheslineEdgeGeometry.IsEdgeZoneHit(new Point(1925, 500), work, vertical: true));
         }
 
         [TestMethod]
