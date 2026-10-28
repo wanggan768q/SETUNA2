@@ -135,8 +135,10 @@ namespace SETUNA.Avalonia.Views
             var clip = new System.Drawing.Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
             using (var g = System.Drawing.Graphics.FromImage(clip))
             {
+                // 源矩形用快照本地坐标（快照从屏幕原点抓取，本地从 0 起）；
+                // 加全局偏移会使非主屏（X≠0）源矩形越界，GDI+ 静默产出全黑图
                 g.DrawImage(_snapshot, new System.Drawing.Rectangle(0, 0, w, h),
-                    new System.Drawing.Rectangle(_snapshotOrigin.X + x, _snapshotOrigin.Y + y, w, h),
+                    new System.Drawing.Rectangle(x, y, w, h),
                     System.Drawing.GraphicsUnit.Pixel);
             }
             Finish(clip, new System.Drawing.Point(_snapshotOrigin.X + x, _snapshotOrigin.Y + y));
