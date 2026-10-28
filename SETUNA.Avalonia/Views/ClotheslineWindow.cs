@@ -369,35 +369,15 @@ namespace SETUNA.Avalonia.Views
         {
             base.Render(context);
 
-            // 绳线：贝塞尔（横/竖），StreamGeometry 绘制
-            var ropePen = new Pen(new SolidColorBrush(Color.FromRgb(120, 80, 40)), 2);
-            var geometry = new StreamGeometry();
-            using (var gctx = geometry.Open())
-            {
-                if (_vertical)
-                {
-                    var h = Height;
-                    gctx.BeginFigure(new global::Avalonia.Point(RopeX, -10), false);
-                    gctx.CubicBezierTo(
-                        new global::Avalonia.Point(RopeX - 4, h / 3),
-                        new global::Avalonia.Point(RopeX + 4, h * 2 / 3),
-                        new global::Avalonia.Point(RopeX, h + 10));
-                }
-                else
-                {
-                    var w = Width;
-                    gctx.BeginFigure(new global::Avalonia.Point(-10, RopeY), false);
-                    gctx.CubicBezierTo(
-                        new global::Avalonia.Point(w / 3, RopeY - 4),
-                        new global::Avalonia.Point(w * 2 / 3, RopeY + 4),
-                        new global::Avalonia.Point(w + 10, RopeY));
-                }
-                gctx.EndFigure(false);
-            }
-            context.DrawGeometry(null, ropePen, geometry);
+            // 绳线：深棕底线 + 浅棕高光错位叠画（拧绳质感）
+            var ropePen = new Pen(new SolidColorBrush(Color.FromRgb(0x78, 0x50, 0x28)), 3);
+            var ropeHighlightPen = new Pen(new SolidColorBrush(Color.FromRgb(0xA8, 0x78, 0x48)), 1);
+            context.DrawGeometry(null, ropePen, BuildRopeGeometry(0, 0));
+            context.DrawGeometry(null, ropeHighlightPen,
+                BuildRopeGeometry(_vertical ? -1 : 0, _vertical ? 0 : -1));
 
-            var clipBrush = new SolidColorBrush(Color.FromRgb(70, 70, 70));
             var framePen = new Pen(Brushes.White, FramePadding * 2 - 2);
+            var shadowBrush = new SolidColorBrush(Color.FromArgb(0x33, 0, 0, 0));
 
             for (var i = 0; i < _itemRects.Count && i < _items.Count; i++)
             {
@@ -411,8 +391,6 @@ namespace SETUNA.Avalonia.Views
                         continue;
                     }
                     rx = rect.X;
-                    // 夹子（照片左侧压绳线）
-                    context.FillRectangle(clipBrush, new Rect(RopeX - 2, ry + rect.Height / 2.0 - ClipWidth / 2.0, ClipHeight, ClipWidth));
                 }
                 else
                 {
@@ -422,19 +400,107 @@ namespace SETUNA.Avalonia.Views
                         continue;
                     }
                     ry = rect.Y;
-                    // 夹子（照片上方压绳线）
-                    context.FillRectangle(clipBrush, new Rect(rx + rect.Width / 2.0 - ClipWidth / 2.0, RopeY - 2, ClipWidth, ClipHeight));
                 }
 
                 // 物理像素 rect → 绘制坐标系（DIP）
                 var drawScale = RenderScaling > 0 ? RenderScaling : 1.0;
                 var avaloniaRect = new Rect(rx / drawScale, ry / drawScale, rect.Width / drawScale, rect.Height / drawScale);
+                // 白框投影（环境光方向固定，不随摆动转）
+                context.FillRectangle(shadowBrush, new Rect(avaloniaRect.X + 2, avaloniaRect.Y + 3, avaloniaRect.Width, avaloniaRect.Height));
                 context.DrawRectangle(null, framePen, avaloniaRect);
 
                 var thumbnail = _items[i].Thumbnail;
                 if (thumbnail != null)
                 {
                     context.DrawImage(thumbnail, avaloniaRect);
+                }
+                DrawClip(context, rx, ry, rect, drawScale);
+            }
+        }
+
+        /// <summary>绳线几何（错位偏移用于高光叠画）。</summary>
+        private StreamGeometry BuildRopeGeometry(double offsetX, double offsetY)
+        {
+            var geometry = new StreamGeometry();
+            using (var gctx = geometry.Open())
+            {
+                if (_vertical)
+                {
+                    var h = Height;
+                    gctx.BeginFigure(new global::Avalonia.Point(RopeX + offsetX, -10 + offsetY), false);
+                    gctx.CubicBezierTo(
+                        new global::Avalonia.Point(RopeX - 4 + offsetX, h / 3 + offsetY),
+                        new global::Avalonia.Point(RopeX + 4 + offsetX, h * 2 / 3 + offsetY),
+                        new global::Avalonia.Point(RopeX + offsetX, h + 10 + offsetY));
+                }
+                else
+                {
+                    var w = Width;
+                    gctx.BeginFigure(new global::Avalonia.Point(-10 + offsetX, RopeY + offsetY), false);
+                    gctx.CubicBezierTo(
+                        new global::Avalonia.Point(w / 3 + offsetX, RopeY - 4 + offsetY),
+                        new global::Avalonia.Point(w * 2 / 3 + offsetX, RopeY + 4 + offsetY),
+                        new global::Avalonia.Point(w + 10 + offsetX, RopeY + offsetY));
+                }
+                gctx.EndFigure(false);
+            }
+            return geometry;
+        }
+
+        /// <summary>木夹子：木色圆角身 + 中缝 + 弹簧箍，压在绳线接触点（随 Task 5 的摆动一起旋转）。</summary>
+        private void DrawClip(DrawingContext context, double rx, double ry, DrawingRect rect, double drawScale)
+        {
+            var bodyBrush = new SolidColorBrush(Color.FromRgb(0xC8, 0x98, 0x58));
+            var seamPen = new Pen(new SolidColorBrush(Color.FromRgb(0x8A, 0x62, 0x30)), 1);
+            var springBrush = new SolidColorBrush(Color.FromRgb(0x50, 0x50, 0x50));
+
+            Rect bodyRect;   // 物理像素 → DIP
+            if (_vertical)
+            {
+                // 图左中压绳（与原灰矩形位置一致）
+                bodyRect = new Rect(
+                    (RopeX - 2) / drawScale,
+                    (ry + rect.Height / 2.0 - ClipWidth / 2.0) / drawScale,
+                    ClipHeight / drawScale, ClipWidth / drawScale);
+            }
+            else
+            {
+                // 图顶中压绳
+                bodyRect = new Rect(
+                    (rx + rect.Width / 2.0 - ClipWidth / 2.0) / drawScale,
+                    (RopeY - 2) / drawScale,
+                    ClipWidth / drawScale, ClipHeight / drawScale);
+            }
+
+            context.FillRectangle(bodyBrush, bodyRect, 2);
+
+            // 中缝：沿夹子长轴中线
+            if (_vertical)
+            {
+                var midX = bodyRect.X + bodyRect.Width / 2;
+                context.DrawLine(seamPen, new global::Avalonia.Point(midX, bodyRect.Y + 2),
+                    new global::Avalonia.Point(midX, bodyRect.Bottom - 2));
+            }
+            else
+            {
+                var midY = bodyRect.Y + bodyRect.Height / 2;
+                context.DrawLine(seamPen, new global::Avalonia.Point(bodyRect.X + 2, midY),
+                    new global::Avalonia.Point(bodyRect.Right - 2, midY));
+            }
+
+            // 弹簧箍：短轴方向两条（约 1/4 与 3/4 长轴处）
+            for (var i = 1; i <= 2; i++)
+            {
+                var f = i / 3.0;
+                if (_vertical)
+                {
+                    var y = bodyRect.Y + bodyRect.Height * f;
+                    context.FillRectangle(springBrush, new Rect(bodyRect.X, y, bodyRect.Width, 1.5));
+                }
+                else
+                {
+                    var x = bodyRect.X + bodyRect.Width * f;
+                    context.FillRectangle(springBrush, new Rect(x, bodyRect.Y, 1.5, bodyRect.Height));
                 }
             }
         }
