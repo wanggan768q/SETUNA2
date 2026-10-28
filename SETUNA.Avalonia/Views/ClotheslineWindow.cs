@@ -97,6 +97,7 @@ namespace SETUNA.Avalonia.Views
         public new void Hide()
         {
             _swingTimer?.Stop();
+            _fadeTimer?.Stop();
             base.Hide();
         }
 
@@ -134,6 +135,41 @@ namespace SETUNA.Avalonia.Views
                 return 0;
             }
             return RopeSwingMath.SwingAngle(_amplitudes[index], _swingClock.Elapsed.TotalSeconds, index);
+        }
+
+        // ===== 淡入淡出（边缘呼出用；15ms × 10 步 ≈ 150ms，对齐 ScrapWindow opacityTimer 模式）=====
+
+        private global::Avalonia.Threading.DispatcherTimer _fadeTimer;
+        private bool _fadeDirection;   // true=淡入
+        private Action _fadeCompleted;
+
+        /// <summary>窗口不透明度淡入/淡出；中途反向调用时旧回调作废（不会执行）。</summary>
+        public void AnimateOpacity(bool fadeIn, Action completed)
+        {
+            _fadeDirection = fadeIn;
+            _fadeCompleted = completed;
+            if (_fadeTimer == null)
+            {
+                _fadeTimer = new global::Avalonia.Threading.DispatcherTimer
+                {
+                    Interval = TimeSpan.FromMilliseconds(15),
+                };
+                _fadeTimer.Tick += (s, e) =>
+                {
+                    const double step = 0.1;
+                    Opacity = _fadeDirection
+                        ? Math.Min(1, Opacity + step)
+                        : Math.Max(0, Opacity - step);
+                    if (Opacity <= 0 || Opacity >= 1)
+                    {
+                        _fadeTimer.Stop();
+                        var done = _fadeCompleted;
+                        _fadeCompleted = null;
+                        done?.Invoke();
+                    }
+                };
+            }
+            _fadeTimer.Start();
         }
 
         public bool IsVertical => _vertical;
