@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using Avalonia;
@@ -9,6 +10,7 @@ using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using SETUNA.Core.Platform;
 using SETUNA.Main;
+using SETUNA.Main.Clothesline;
 using DrawingRect = System.Drawing.Rectangle;
 using DrawingSize = System.Drawing.Size;
 using DrawingPoint = System.Drawing.Point;
@@ -57,6 +59,12 @@ namespace SETUNA.Avalonia.Views
         private bool _draggingRope;
         private PixelPoint _dragStart;
 
+        // ===== 摆动动画状态 =====
+        private global::Avalonia.Threading.DispatcherTimer _swingTimer;
+        private readonly Stopwatch _swingClock = Stopwatch.StartNew();
+        private List<double> _amplitudes = new();
+        private int _hoverIndex = -1;
+
         private static ClotheslineWindow InstanceRef;
 
         public ClotheslineWindow()
@@ -75,6 +83,55 @@ namespace SETUNA.Avalonia.Views
             PointerReleased += OnReleased;
             PointerWheelChanged += OnWheel;
             DoubleTapped += OnDoubleTapped;
+            PointerExited += (s, e) => { _hoverIndex = -1; };
+        }
+
+        public new void Show()
+        {
+            base.Show();
+            EnsureSwingTimer().Start();
+        }
+
+        public new void Hide()
+        {
+            _swingTimer?.Stop();
+            base.Hide();
+        }
+
+        private global::Avalonia.Threading.DispatcherTimer EnsureSwingTimer()
+        {
+            if (_swingTimer == null)
+            {
+                _swingTimer = new global::Avalonia.Threading.DispatcherTimer
+                {
+                    Interval = TimeSpan.FromMilliseconds(16),
+                };
+                _swingTimer.Tick += (s, e) =>
+                {
+                    UpdateAmplitudes();
+                    InvalidateVisual();
+                };
+            }
+            return _swingTimer;
+        }
+
+        private void UpdateAmplitudes()
+        {
+            for (var i = 0; i < _amplitudes.Count; i++)
+            {
+                var target = i == _hoverIndex ? RopeSwingMath.HoverAmplitudeDeg : RopeSwingMath.IdleAmplitudeDeg;
+                _amplitudes[i] = RopeSwingMath.ApproachAmplitude(_amplitudes[i], target, RopeSwingMath.ApproachStepDeg);
+            }
+        }
+
+        /// <summary>条目当前摆角（度）；无动画状态返回 0。</summary>
+        private double SwingAngleFor(int index)
+        {
+            if (index < 0 || index >= _amplitudes.Count || _amplitudes[index] <= 0.01)
+            {
+                return 0;
+            }
+            return RopeSwingMath.SwingAngle(_amplitudes[index], _swingClock.Elapsed.TotalSeconds, index);
         }
 
         public bool IsVertical => _vertical;
@@ -95,6 +152,16 @@ namespace SETUNA.Avalonia.Views
             // 缩略图生命周期归控制器（Attach/Update/Remove 各自释放），此处只换引用
             _items.Clear();
             _items.AddRange(items);
+            // 振幅跟随条目数：尾部新增以 6° 起摆；收缩截断。
+            // ponytail: 不做逐条目 diff 对齐，中间删除时振幅错位视觉无感；需要时改按 Scrap 引用字典。
+            while (_amplitudes.Count < _items.Count)
+            {
+                _amplitudes.Add(RopeSwingMath.NewItemAmplitudeDeg);
+            }
+            if (_amplitudes.Count > _items.Count)
+            {
+                _amplitudes.RemoveRange(_items.Count, _amplitudes.Count - _items.Count);
+            }
             LayoutItems();
             InvalidateVisual();
         }
@@ -196,15 +263,19 @@ namespace SETUNA.Avalonia.Views
 
         private void OnMoved(object sender, PointerEventArgs e)
         {
+            var pos = e.GetPosition(this);
             if (!_draggingRope)
             {
+                // 悬停检测（驱动摆动加剧；命中不跟随摆动，spec 已定）
+                var scale = RenderScaling > 0 ? RenderScaling : 1.0;
+                var clientPt = new DrawingPoint((int)Math.Round(pos.X * scale), (int)Math.Round(pos.Y * scale));
+                _hoverIndex = FindItemIndexAt(_itemRects, clientPt, _scrollOffset, _vertical);
                 return;
             }
-            var scale = RenderScaling > 0 ? RenderScaling : 1.0;
-            var client = e.GetPosition(this);
+            var screenScale = RenderScaling > 0 ? RenderScaling : 1.0;
             var screen = new PixelPoint(
-                Position.X + (int)Math.Round(client.X * scale),
-                Position.Y + (int)Math.Round(client.Y * scale));
+                Position.X + (int)Math.Round(pos.X * screenScale),
+                Position.Y + (int)Math.Round(pos.Y * screenScale));
             Position = new PixelPoint(screen.X - _dragStart.X, screen.Y - _dragStart.Y);
         }
 
@@ -406,14 +477,24 @@ namespace SETUNA.Avalonia.Views
                 var avaloniaRect = new Rect(rx / drawScale, ry / drawScale, rect.Width / drawScale, rect.Height / drawScale);
                 // 白框投影（环境光方向固定，不随摆动转）
                 context.FillRectangle(shadowBrush, new Rect(avaloniaRect.X + 6, avaloniaRect.Y + 7, avaloniaRect.Width, avaloniaRect.Height));
-                context.DrawRectangle(null, framePen, avaloniaRect);
 
-                var thumbnail = _items[i].Thumbnail;
-                if (thumbnail != null)
+                // 摆动：绕绳接触点旋转（横=图顶中，竖=图左中）；夹子与图同变换
+                var angle = SwingAngleFor(i);
+                var pivotX = _vertical ? RopeX / drawScale : avaloniaRect.X + avaloniaRect.Width / 2;
+                var pivotY = _vertical ? avaloniaRect.Y + avaloniaRect.Height / 2 : RopeY / drawScale;
+                using ((DrawingContext.PushedState?)(Math.Abs(angle) > 0.05
+                    ? context.PushTransform(new RotateTransform(angle, pivotX, pivotY).Value)
+                    : null))
                 {
-                    context.DrawImage(thumbnail, avaloniaRect);
+                    context.DrawRectangle(null, framePen, avaloniaRect);
+
+                    var thumbnail = _items[i].Thumbnail;
+                    if (thumbnail != null)
+                    {
+                        context.DrawImage(thumbnail, avaloniaRect);
+                    }
+                    DrawClip(context, rx, ry, rect, drawScale);
                 }
-                DrawClip(context, rx, ry, rect, drawScale);
             }
         }
 
