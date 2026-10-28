@@ -172,6 +172,13 @@ namespace SETUNA.Avalonia.Views
             _fadeTimer.Start();
         }
 
+        /// <summary>立即恢复完全不透明（手动 Show 打断淡入淡出后的归位）。</summary>
+        public void SetOpacityImmediate(double opacity)
+        {
+            _fadeTimer?.Stop();
+            Opacity = opacity;
+        }
+
         public bool IsVertical => _vertical;
 
         public DrawingPoint RopeLocation => new System.Drawing.Point(Position.X, Position.Y);
