@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 rem SETUNA Avalonia 版打包脚本（期 6）：PublishSingleFile 替代 Costura.Fody
 echo 正在清理之前的构建...
 if exist "publish-framework" rmdir /s /q "publish-framework"
