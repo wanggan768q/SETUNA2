@@ -306,6 +306,7 @@ namespace SETUNA.Avalonia
                         _clotheslineController.AttachScrap(scrap);
                     }
                 }
+                _clotheslineController.SetEdgeRevealEnabled(Option.ClotheslineEdgeReveal);
                 _clotheslineController.Show();
             }
             else if (_clotheslineModeActive)
@@ -319,6 +320,7 @@ namespace SETUNA.Avalonia
                         scrap.SetClotheslineHanging(false);
                     }
                 }
+                _clotheslineController.SetEdgeRevealEnabled(false);
                 _clotheslineController.Hide();
             }
         }
