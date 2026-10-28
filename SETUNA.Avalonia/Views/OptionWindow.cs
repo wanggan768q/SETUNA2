@@ -36,6 +36,7 @@ namespace SETUNA.Avalonia.Views
         private CheckBox _chkCursor;
         private CheckBox _chkClothesline;
         private ComboBox _cmbOrientation;
+        private CheckBox _chkEdgeReveal;
 
         public OptionWindow(SetunaOption current, Action saved)
         {
@@ -199,6 +200,8 @@ namespace SETUNA.Avalonia.Views
             _cmbOrientation.SelectedIndex = 0;
             panel.Children.Add(_chkClothesline);
             panel.Children.Add(Row("绳子方向", _cmbOrientation));
+            _chkEdgeReveal = new CheckBox { Content = "移到屏幕边缘自动呼出绳子" };
+            panel.Children.Add(_chkEdgeReveal);
             return new ScrollViewer { Content = panel };
         }
 
@@ -221,6 +224,7 @@ namespace SETUNA.Avalonia.Views
             _chkCursor.IsChecked = _working.Setuna.CursorEnabled;
             _chkClothesline.IsChecked = _working.ClotheslineEnabled;
             _cmbOrientation.SelectedIndex = (int)_working.ClotheslineRopeOrientation;
+            _chkEdgeReveal.IsChecked = _working.ClotheslineEdgeReveal;
             RefreshStyleList();
         }
 
@@ -241,6 +245,7 @@ namespace SETUNA.Avalonia.Views
             _working.Setuna.CursorEnabled = _chkCursor.IsChecked == true;
             _working.ClotheslineEnabled = _chkClothesline.IsChecked == true;
             _working.ClotheslineRopeOrientation = (ClotheslineRopeOrientation)Math.Max(0, _cmbOrientation.SelectedIndex);
+            _working.ClotheslineEdgeReveal = _chkEdgeReveal.IsChecked == true;
         }
 
         private static StackPanel Row(string label, Control control)
