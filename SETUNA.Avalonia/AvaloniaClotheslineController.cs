@@ -30,6 +30,13 @@ namespace SETUNA.Avalonia
         private bool _capturePaused;
         private bool _disposed;
 
+        // ===== 边缘呼出（PicRope 交互）=====
+
+        private global::Avalonia.Threading.DispatcherTimer _edgeTimer;
+        private bool _edgeRevealEnabled;
+        private DateTime _awaySince = DateTime.MaxValue;    // MaxValue=光标在绳/边缘上
+        private DateTime _manualShowAt = DateTime.MinValue; // 手动呼出宽限起点
+
         public AvaloniaClotheslineController(
             Func<Point> getRopeInitialPosition,
             Action<Point> ropePositionChanged,
@@ -47,6 +54,7 @@ namespace SETUNA.Avalonia
 
         public void Show()
         {
+            _manualShowAt = DateTime.Now;
             _visible = true;
             if (_capturePaused)
             {
@@ -260,6 +268,122 @@ namespace SETUNA.Avalonia
         /// <summary>绳窗可见性快照（UI 线程更新，钩子线程只读；避免跨线程触碰 Visual）。</summary>
         private (bool RopeVisible, System.Drawing.Point RopeLocation, bool Vertical) _visibilitySnapshot;
 
+        /// <summary>开/关边缘呼出轮询（宿主在模式应用与选项同步时调用）。</summary>
+        public void SetEdgeRevealEnabled(bool enabled)
+        {
+            if (_edgeRevealEnabled == enabled)
+            {
+                return;
+            }
+            _edgeRevealEnabled = enabled;
+            if (enabled)
+            {
+                EnsureEdgeTimer().Start();
+            }
+            else
+            {
+                _edgeTimer?.Stop();
+            }
+        }
+
+        private global::Avalonia.Threading.DispatcherTimer EnsureEdgeTimer()
+        {
+            if (_edgeTimer == null)
+            {
+                _edgeTimer = new global::Avalonia.Threading.DispatcherTimer
+                {
+                    Interval = TimeSpan.FromMilliseconds(100),
+                };
+                _edgeTimer.Tick += (s, e) => EdgeTick();
+            }
+            return _edgeTimer;
+        }
+
+        /// <summary>100ms 轮询：组装决策输入 → 纯函数决策 → 执行呼出/收起。</summary>
+        private void EdgeTick()
+        {
+            if (_disposed || _capturePaused)
+            {
+                return;
+            }
+            var capture = SETUNA.Core.Platform.PlatformServices.IsRegistered
+                ? SETUNA.Core.Platform.PlatformServices.Instance.ScreenCapture
+                : null;
+            if (capture == null)
+            {
+                return;
+            }
+
+            var cursor = capture.GetCursorPosition();
+            var ropeLoc = _ropeForm != null ? _ropeForm.RopeLocation : System.Drawing.Point.Empty;
+            var vertical = IsRopeVertical;
+            var work = capture.GetMonitorFromPoint(ropeLoc).WorkingArea;
+            var edgeZoneHit = ClotheslineEdgeGeometry.IsEdgeZoneHit(cursor, work, vertical);
+            var pointerNearRope = _ropeForm != null && IsPointerNearRopeForm(cursor);
+            var fg = SETUNA.Core.Platform.PlatformServices.Instance.Window.GetForegroundWindow();
+            var fullscreenCovers = fg != null && ClotheslineEdgeGeometry.CoversWorkArea(fg.Bounds, work);
+
+            if (edgeZoneHit || pointerNearRope)
+            {
+                _awaySince = DateTime.MaxValue;
+            }
+            else if (_awaySince == DateTime.MaxValue)
+            {
+                _awaySince = DateTime.Now;
+            }
+            var awayDuration = _awaySince == DateTime.MaxValue ? TimeSpan.Zero : DateTime.Now - _awaySince;
+            var withinManualGrace = DateTime.Now - _manualShowAt < ClotheslineEdgeReveal.ManualGrace;
+
+            var action = ClotheslineEdgeReveal.DecideEdgeReveal(
+                _visible, _capturePaused, edgeZoneHit, pointerNearRope, fullscreenCovers,
+                awayDuration, withinManualGrace);
+
+            if (action == EdgeRevealAction.Reveal)
+            {
+                RevealWithFade();
+            }
+            else if (action == EdgeRevealAction.Retract)
+            {
+                RetractWithFade();
+            }
+        }
+
+        /// <summary>光标是否在绳窗矩形外扩 12px 内（物理像素）。</summary>
+        private bool IsPointerNearRopeForm(System.Drawing.Point cursor)
+        {
+            var scale = _ropeForm.RenderScaling > 0 ? _ropeForm.RenderScaling : 1.0;
+            var rect = new Rectangle(
+                _ropeForm.Position.X,
+                _ropeForm.Position.Y,
+                (int)Math.Round(_ropeForm.Width * scale),
+                (int)Math.Round(_ropeForm.Height * scale));
+            rect.Inflate(12, 12);
+            return rect.Contains(cursor);
+        }
+
+        /// <summary>边缘呼出：先零透明再 Show（立即路径），再淡入。</summary>
+        private void RevealWithFade()
+        {
+            _ropeForm = EnsureRopeForm();
+            _ropeForm.Opacity = 0;
+            _visible = true;
+            _ropeForm.Show();
+            UpdateRopeItems();
+            UpdateVisibilitySnapshot();
+            _ropeForm.AnimateOpacity(fadeIn: true, completed: null);
+        }
+
+        /// <summary>边缘收起：关预览 → 淡出 → 完成回调真 Hide（更新可见性快照）。</summary>
+        private void RetractWithFade()
+        {
+            if (_ropeForm == null || !_visible)
+            {
+                return;
+            }
+            ClosePreview();
+            _ropeForm.AnimateOpacity(fadeIn: false, completed: Hide);
+        }
+
         /// <summary>UI 线程调用：刷新钩子线程用的绳窗可见性快照。</summary>
         public void UpdateVisibilitySnapshot()
         {
@@ -423,6 +547,7 @@ namespace SETUNA.Avalonia
             }
             _disposed = true;
             ClosePreview();
+            _edgeTimer?.Stop();
             _previewImage?.Dispose();
             _previewImage = null;
             DisposeThumbnails();
