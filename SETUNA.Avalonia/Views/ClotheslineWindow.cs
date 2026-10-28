@@ -83,6 +83,8 @@ namespace SETUNA.Avalonia.Views
             PointerReleased += OnReleased;
             PointerWheelChanged += OnWheel;
             DoubleTapped += OnDoubleTapped;
+            // 防御：Close 路径不经 Hide()，关窗即停摆动计时器，避免对已关窗口持续重绘
+            Closed += (s, e) => _swingTimer?.Stop();
             PointerExited += (s, e) => { _hoverIndex = -1; };
         }
 
