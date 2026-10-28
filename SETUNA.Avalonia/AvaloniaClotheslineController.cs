@@ -60,7 +60,9 @@ namespace SETUNA.Avalonia
             {
                 return;
             }
-            EnsureRopeForm().Show();
+            EnsureRopeForm();
+            _ropeForm?.SetOpacityImmediate(1.0);
+            _ropeForm.Show();
             UpdateRopeItems();
             UpdateVisibilitySnapshot();
         }
@@ -84,6 +86,7 @@ namespace SETUNA.Avalonia
             {
                 EnsureRopeForm().Show();
                 UpdateRopeItems();
+                UpdateVisibilitySnapshot();
             }
         }
 
@@ -381,7 +384,16 @@ namespace SETUNA.Avalonia
                 return;
             }
             ClosePreview();
-            _ropeForm.AnimateOpacity(fadeIn: false, completed: Hide);
+            var retractStartedAt = DateTime.Now;
+            _ropeForm.AnimateOpacity(fadeIn: false, completed: () =>
+            {
+                // 淡出期间发生手动呼出（Show 记录的新 _manualShowAt）：跳过收起，保留手动结果
+                if (_manualShowAt > retractStartedAt)
+                {
+                    return;
+                }
+                Hide();
+            });
         }
 
         /// <summary>UI 线程调用：刷新钩子线程用的绳窗可见性快照。</summary>
