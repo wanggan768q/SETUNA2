@@ -29,12 +29,12 @@ namespace SETUNA
             _iscapture = false;
             _isoption = false;
             InitializeComponent();
-            scrapBook = new ScrapBook(this);
+            scrapBook = new ScrapBook(new MainformHostAdapter(this));
             scrapBook.addKeyPressListener(this);
             scrapBook.addScrapAddedListener(this);
             scrapBook.addScrapRemovedListener(this);
             optSetuna = new SetunaOption();
-            dustbox = new Queue<ScrapBase>();
+            dustbox = new Queue<IScrap>();
             scrapBook.DustBox = dustbox;
             scrapBook.DustBoxCapacity = 5;
             keyBook = optSetuna.GetKeyItemBook();
@@ -102,20 +102,22 @@ namespace SETUNA
         // Token: 0x060001F5 RID: 501 RVA: 0x0000A600 File Offset: 0x00008800
         private void SetSubMenu()
         {
-            setunaIconMenu.Scrap = scrapBook.GetDummyScrap();
+            WinFormsUiFactoryRegistration.Register();
+
+            setunaIconMenu.Scrap = (ScrapBase)scrapBook.GetDummyScrap();
             setunaIconMenu.Items.Clear();
-            setunaIconMenu.Items.Add(new CScrapListStyle().GetToolStrip(scrapBook));
-            setunaIconMenu.Items.Add(new CDustBoxStyle().GetToolStrip(scrapBook));
-            setunaIconMenu.Items.Add(new CDustEraseStyle().GetToolStrip());
-            setunaIconMenu.Items.Add(new CDustScrapStyle().GetToolStrip());
+            setunaIconMenu.Items.Add((ToolStripItem)new CScrapListStyle().GetToolStrip(scrapBook));
+            setunaIconMenu.Items.Add((ToolStripItem)new CDustBoxStyle().GetToolStrip(scrapBook));
+            setunaIconMenu.Items.Add((ToolStripItem)new CDustEraseStyle().GetToolStrip());
+            setunaIconMenu.Items.Add((ToolStripItem)new CDustScrapStyle().GetToolStrip());
             setunaIconMenu.Items.Add(new ToolStripSeparator());
-            setunaIconMenu.Items.Add(new CCaptureStyle().GetToolStrip());
-            setunaIconMenu.Items.Add(new CPasteStyle().GetToolStrip());
+            setunaIconMenu.Items.Add((ToolStripItem)new CCaptureStyle().GetToolStrip());
+            setunaIconMenu.Items.Add((ToolStripItem)new CPasteStyle().GetToolStrip());
             setunaIconMenu.Items.Add(new ToolStripSeparator());
-            setunaIconMenu.Items.Add(new CShowVersionStyle().GetToolStrip());
-            setunaIconMenu.Items.Add(new COptionStyle().GetToolStrip());
+            setunaIconMenu.Items.Add((ToolStripItem)new CShowVersionStyle().GetToolStrip());
+            setunaIconMenu.Items.Add((ToolStripItem)new COptionStyle().GetToolStrip());
             setunaIconMenu.Items.Add(new ToolStripSeparator());
-            setunaIconMenu.Items.Add(new CShutDownStyle().GetToolStrip());
+            setunaIconMenu.Items.Add((ToolStripItem)new CShutDownStyle().GetToolStrip());
         }
 
         // Token: 0x060001F6 RID: 502 RVA: 0x0000A740 File Offset: 0x00008940
@@ -215,7 +217,7 @@ namespace SETUNA
                 {
                     if (scrapBase.Visible && scrapBase.TopMost)
                     {
-                        list.Add(scrapBase);
+                        list.Add((ScrapBase)scrapBase);
                     }
                 }
                 foreach (var scrapBase2 in list)
@@ -327,7 +329,7 @@ namespace SETUNA
                                 var cstyle = enumerator2.Current;
                                 if (cstyle.StyleID == num)
                                 {
-                                    subMenu.Items.Add(cstyle.GetToolStrip(scrapBook));
+                                    subMenu.Items.Add((ToolStripItem)cstyle.GetToolStrip(scrapBook));
                                 }
                             }
                             continue;
@@ -336,7 +338,7 @@ namespace SETUNA
                     var preStyle = CPreStyles.GetPreStyle(num);
                     if (preStyle != null)
                     {
-                        subMenu.Items.Add(preStyle.GetToolStrip(scrapBook));
+                        subMenu.Items.Add((ToolStripItem)preStyle.GetToolStrip(scrapBook));
                     }
                 }
                 if (optSetuna.Setuna.ClickCapture)
@@ -435,7 +437,7 @@ namespace SETUNA
                     if (scrap.IsClotheslineHanging)
                     {
                         scrap.SetClotheslineHanging(false);
-                        scrap.Hide();
+                        ((ScrapBase)scrap).Hide();
                     }
                 }
             }
@@ -577,7 +579,7 @@ namespace SETUNA
             // 订阅常驻（模式关闭时也保持），Controller 为 null 时跳过同步
             if (scrap.IsClotheslineHanging)
             {
-                clotheslineController?.AttachScrap(scrap);
+                clotheslineController?.AttachScrap((ScrapBase)scrap);
             }
             scrap.ClotheslineHangingChanged += Scrap_HangingChanged;
             scrap.ScrapImageChangedEvent += Scrap_ImageChanged;
@@ -596,13 +598,13 @@ namespace SETUNA
             scrap.ClotheslineHangingChanged -= Scrap_HangingChanged;
             scrap.ScrapImageChangedEvent -= Scrap_ImageChanged;
             scrap.ScrapStyleAppliedEvent -= Scrap_ImageChanged;
-            clotheslineController?.RemoveScrap(scrap);
+            clotheslineController?.RemoveScrap((ScrapBase)scrap);
         }
 
         private void Scrap_ImageChanged(object sender, ScrapEventArgs e)
         {
             // 缩略图与预览随新图重建（缩放/替换图像后绳子上的小图保持同步）
-            clotheslineController?.UpdateScrap(e.scrap);
+            clotheslineController?.UpdateScrap((ScrapBase)e.scrap);
         }
 
         private void Scrap_HangingChanged(object sender, ScrapEventArgs e)
@@ -614,11 +616,11 @@ namespace SETUNA
             }
             if (scrap.IsClotheslineHanging)
             {
-                clotheslineController?.AttachScrap(scrap);
+                clotheslineController?.AttachScrap((ScrapBase)scrap);
             }
             else
             {
-                clotheslineController?.DetachScrap(scrap);
+                clotheslineController?.DetachScrap((ScrapBase)scrap);
             }
         }
 
@@ -640,8 +642,8 @@ namespace SETUNA
             var keyItem = keyBook.FindKeyItem(e.key);
             if (keyItem != null)
             {
-                var scrapBase = (ScrapBase)sender;
-                keyItem.ParentStyle.Apply(ref scrapBase);
+                var scrapBase = (IScrap)sender;
+                ((SETUNA.Main.Style.CStyle)keyItem.ParentStyle).Apply(ref scrapBase);
             }
         }
 
@@ -722,11 +724,11 @@ namespace SETUNA
                 var scrapBase = dustbox.Dequeue();
                 if (!scrapBase.Equals(toolStripMenuItem.Tag))
                 {
-                    list.Add(scrapBase);
+                    list.Add((ScrapBase)scrapBase);
                 }
                 else
                 {
-                    scrapBook.AddScrapThenDo(scrapBase);
+                    scrapBook.AddScrapThenDo((ScrapBase)scrapBase);
                 }
             }
             dustbox.Clear();
@@ -936,6 +938,7 @@ namespace SETUNA
                     clotheslineController.Show();
                 }
             }
+            SETUNA.Main.Cache.ScrapBookAccessor.Register(() => scrapBook);
             SETUNA.Main.Cache.CacheManager.Instance.Init();
             delayInitTimer.Start();
             
@@ -965,9 +968,10 @@ namespace SETUNA
         // Token: 0x06000213 RID: 531 RVA: 0x0000B3BE File Offset: 0x000095BE
         public void ScrapMenuOpening(object sender, ScrapMenuArgs e)
         {
-            subMenu.Scrap = e.scrap;
-            UpdateClotheslineMenuItem(e.scrap);
-            subMenu.Show(e.scrap, e.scrap.PointToClient(Cursor.Position));
+            var scrapBase = (ScrapBase)e.scrap;
+            subMenu.Scrap = scrapBase;
+            UpdateClotheslineMenuItem(scrapBase);
+            subMenu.Show(scrapBase, scrapBase.PointToClient(Cursor.Position));
 
             subMenu.MouseWheel -= SubMenu_MouseWheel;
             subMenu.MouseWheel += SubMenu_MouseWheel;
@@ -1341,13 +1345,14 @@ namespace SETUNA
             {
                 foreach (var item in scrapBook)
                 {
-                    if (item.Visible)
+                    var scrapBase = (ScrapBase)item;
+                    if (scrapBase.Visible)
                     {
-                        forms.Add(item);
+                        forms.Add(scrapBase);
                     }
-                    else if ((item.StyleForm?.Visible ?? false) == true)
+                    else if ((scrapBase.StyleForm?.Visible ?? false) == true)
                     {
-                        forms.Add(item.StyleForm);
+                        forms.Add(scrapBase.StyleForm);
                     }
                 }
 
@@ -1382,7 +1387,7 @@ namespace SETUNA
         public KeyItemBook keyBook;
 
         // Token: 0x040000E5 RID: 229
-        public Queue<ScrapBase> dustbox;
+        public Queue<IScrap> dustbox;
 
         // Token: 0x040000E6 RID: 230
         private ClickCapture frmClickCapture;

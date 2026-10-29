@@ -13,53 +13,53 @@ using SETUNA.Main.StyleItems;
 namespace SETUNA.Main
 {
     // Token: 0x02000008 RID: 8
-    public sealed partial class ScrapBase : BaseForm
+    public sealed partial class ScrapBase : BaseForm, IScrap
     {
         // Token: 0x14000001 RID: 1
         // (add) Token: 0x06000037 RID: 55 RVA: 0x00003461 File Offset: 0x00001661
         // (remove) Token: 0x06000038 RID: 56 RVA: 0x0000347A File Offset: 0x0000167A
-        public event ScrapBase.ScrapEventHandler ScrapCloseEvent;
+        public event ScrapEventHandler ScrapCloseEvent;
 
         // Token: 0x14000002 RID: 2
         // (add) Token: 0x06000039 RID: 57 RVA: 0x00003493 File Offset: 0x00001693
         // (remove) Token: 0x0600003A RID: 58 RVA: 0x000034AC File Offset: 0x000016AC
-        public event ScrapBase.ScrapEventHandler ScrapCreateEvent;
+        public event ScrapEventHandler ScrapCreateEvent;
 
         // Token: 0x14000003 RID: 3
         // (add) Token: 0x0600003B RID: 59 RVA: 0x000034C5 File Offset: 0x000016C5
         // (remove) Token: 0x0600003C RID: 60 RVA: 0x000034DE File Offset: 0x000016DE
-        public event ScrapBase.ScrapEventHandler ScrapActiveEvent;
+        public event ScrapEventHandler ScrapActiveEvent;
 
         // Token: 0x14000004 RID: 4
         // (add) Token: 0x0600003D RID: 61 RVA: 0x000034F7 File Offset: 0x000016F7
         // (remove) Token: 0x0600003E RID: 62 RVA: 0x00003510 File Offset: 0x00001710
-        public event ScrapBase.ScrapEventHandler ScrapInactiveEvent;
+        public event ScrapEventHandler ScrapInactiveEvent;
 
         // Token: 0x14000005 RID: 5
         // (add) Token: 0x0600003F RID: 63 RVA: 0x00003529 File Offset: 0x00001729
         // (remove) Token: 0x06000040 RID: 64 RVA: 0x00003542 File Offset: 0x00001742
-        public event ScrapBase.ScrapEventHandler ScrapInactiveEnterEvent;
+        public event ScrapEventHandler ScrapInactiveEnterEvent;
 
         // Token: 0x14000006 RID: 6
         // (add) Token: 0x06000041 RID: 65 RVA: 0x0000355B File Offset: 0x0000175B
         // (remove) Token: 0x06000042 RID: 66 RVA: 0x00003574 File Offset: 0x00001774
-        public event ScrapBase.ScrapEventHandler ScrapInactiveOutEvent;
+        public event ScrapEventHandler ScrapInactiveOutEvent;
 
         // Token: 0x14000007 RID: 7
         // (add) Token: 0x06000043 RID: 67 RVA: 0x0000358D File Offset: 0x0000178D
         // (remove) Token: 0x06000044 RID: 68 RVA: 0x000035A6 File Offset: 0x000017A6
-        public event ScrapBase.ScrapSubMenuHandler ScrapSubMenuOpening;
+        public event ScrapSubMenuHandler ScrapSubMenuOpening;
 
-        public event ScrapBase.ScrapEventHandler ScrapLocationChangedEvent;
+        public event ScrapEventHandler ScrapLocationChangedEvent;
 
-        public event ScrapBase.ScrapEventHandler ScrapImageChangedEvent;
+        public event ScrapEventHandler ScrapImageChangedEvent;
 
-        public event ScrapBase.ScrapEventHandler ScrapStyleAppliedEvent;
+        public event ScrapEventHandler ScrapStyleAppliedEvent;
 
-        public event ScrapBase.ScrapEventHandler ScrapStyleRemovedEvent;
+        public event ScrapEventHandler ScrapStyleRemovedEvent;
 
         /// <summary>晾绳挂起状态变化（宿主订阅后桥接晾绳组件，ScrapBase 不直接依赖 Controller）。</summary>
-        public event ScrapBase.ScrapEventHandler ClotheslineHangingChanged;
+        public event ScrapEventHandler ClotheslineHangingChanged;
 
 
         // Token: 0x1700000C RID: 12
@@ -574,7 +574,7 @@ namespace SETUNA.Main
                 _parent = value;
                 if (ScrapCloseEvent == null)
                 {
-                    ScrapCloseEvent = (ScrapBase.ScrapEventHandler)Delegate.Combine(ScrapCloseEvent, new ScrapBase.ScrapEventHandler(_parent.ScrapClose));
+                    ScrapCloseEvent = (ScrapEventHandler)Delegate.Combine(ScrapCloseEvent, new ScrapEventHandler(_parent.ScrapClose));
                     base.KeyDown += _parent.OnKeyUp;
                 }
             }
@@ -694,11 +694,11 @@ namespace SETUNA.Main
         // Token: 0x0600007C RID: 124 RVA: 0x00004438 File Offset: 0x00002638
         public void addScrapStyleEvent(IScrapStyleListener listener)
         {
-            ScrapCreateEvent = (ScrapBase.ScrapEventHandler)Delegate.Combine(ScrapCreateEvent, new ScrapBase.ScrapEventHandler(listener.ScrapCreated));
-            ScrapActiveEvent = (ScrapBase.ScrapEventHandler)Delegate.Combine(ScrapActiveEvent, new ScrapBase.ScrapEventHandler(listener.ScrapActivated));
-            ScrapInactiveEvent = (ScrapBase.ScrapEventHandler)Delegate.Combine(ScrapInactiveEvent, new ScrapBase.ScrapEventHandler(listener.ScrapInactived));
-            ScrapInactiveEnterEvent = (ScrapBase.ScrapEventHandler)Delegate.Combine(ScrapInactiveEnterEvent, new ScrapBase.ScrapEventHandler(listener.ScrapInactiveMouseOver));
-            ScrapInactiveOutEvent = (ScrapBase.ScrapEventHandler)Delegate.Combine(ScrapInactiveOutEvent, new ScrapBase.ScrapEventHandler(listener.ScrapInactiveMouseOut));
+            ScrapCreateEvent = (ScrapEventHandler)Delegate.Combine(ScrapCreateEvent, new ScrapEventHandler(listener.ScrapCreated));
+            ScrapActiveEvent = (ScrapEventHandler)Delegate.Combine(ScrapActiveEvent, new ScrapEventHandler(listener.ScrapActivated));
+            ScrapInactiveEvent = (ScrapEventHandler)Delegate.Combine(ScrapInactiveEvent, new ScrapEventHandler(listener.ScrapInactived));
+            ScrapInactiveEnterEvent = (ScrapEventHandler)Delegate.Combine(ScrapInactiveEnterEvent, new ScrapEventHandler(listener.ScrapInactiveMouseOver));
+            ScrapInactiveOutEvent = (ScrapEventHandler)Delegate.Combine(ScrapInactiveOutEvent, new ScrapEventHandler(listener.ScrapInactiveMouseOut));
         }
 
         // Token: 0x0600007D RID: 125 RVA: 0x000044F4 File Offset: 0x000026F4
@@ -766,12 +766,12 @@ namespace SETUNA.Main
         // Token: 0x06000082 RID: 130 RVA: 0x000045E6 File Offset: 0x000027E6
         public void addScrapMenuEvent(IScrapMenuListener listener)
         {
-            ScrapSubMenuOpening = (ScrapBase.ScrapSubMenuHandler)Delegate.Combine(ScrapSubMenuOpening, new ScrapBase.ScrapSubMenuHandler(listener.ScrapMenuOpening));
+            ScrapSubMenuOpening = (ScrapSubMenuHandler)Delegate.Combine(ScrapSubMenuOpening, new ScrapSubMenuHandler(listener.ScrapMenuOpening));
         }
 
         public void addScrapLocationChangedEvent(IScrapLocationChangedListener listener)
         {
-            ScrapLocationChangedEvent = (ScrapBase.ScrapEventHandler)Delegate.Combine(ScrapLocationChangedEvent, new ScrapBase.ScrapEventHandler(listener.ScrapLocationChanged));
+            ScrapLocationChangedEvent = (ScrapEventHandler)Delegate.Combine(ScrapLocationChangedEvent, new ScrapEventHandler(listener.ScrapLocationChanged));
         }
 
         public void fireScrapLocationChangedEvent()
@@ -784,17 +784,17 @@ namespace SETUNA.Main
 
         public void addScrapImageChangedEvent(IScrapImageChangedListener listener)
         {
-            ScrapImageChangedEvent = (ScrapBase.ScrapEventHandler)Delegate.Combine(ScrapImageChangedEvent, new ScrapBase.ScrapEventHandler(listener.ScrapImageChanged));
+            ScrapImageChangedEvent = (ScrapEventHandler)Delegate.Combine(ScrapImageChangedEvent, new ScrapEventHandler(listener.ScrapImageChanged));
         }
 
         public void addScrapStyleAppliedEvent(IScrapStyleAppliedListener listener)
         {
-            ScrapStyleAppliedEvent = (ScrapBase.ScrapEventHandler)Delegate.Combine(ScrapStyleAppliedEvent, new ScrapBase.ScrapEventHandler(listener.ScrapStyleApplied));
+            ScrapStyleAppliedEvent = (ScrapEventHandler)Delegate.Combine(ScrapStyleAppliedEvent, new ScrapEventHandler(listener.ScrapStyleApplied));
         }
 
         public void addScrapStyleRemovedEvent(IScrapStyleRemovedListener listener)
         {
-            ScrapStyleRemovedEvent = (ScrapBase.ScrapEventHandler)Delegate.Combine(ScrapStyleRemovedEvent, new ScrapBase.ScrapEventHandler(listener.ScrapStyleRemoved));
+            ScrapStyleRemovedEvent = (ScrapEventHandler)Delegate.Combine(ScrapStyleRemovedEvent, new ScrapEventHandler(listener.ScrapStyleRemoved));
         }
 
 
@@ -833,6 +833,25 @@ namespace SETUNA.Main
         public new void SetBounds(int x, int y, int width, int height, BoundsSpecified specified)
         {
             SetBoundsCore(x, y, width, height, specified);
+        }
+
+        /// <summary>IScrap 显式实现：specified 对齐 WinForms BoundsSpecified 数值。</summary>
+        void IScrap.SetBounds(int x, int y, int width, int height, int specified)
+        {
+            SetBoundsCore(x, y, width, height, (BoundsSpecified)specified);
+        }
+
+        int IScrap.FormBorderStyle
+        {
+            get => (int)base.FormBorderStyle;
+            set => base.FormBorderStyle = (FormBorderStyle)value;
+        }
+
+        /// <summary>IScrap 显式实现：贴图窗体无 InterpolationMode 时回退。</summary>
+        object IScrap.InterpolationMode
+        {
+            get => InterpolationMode;
+            set => InterpolationMode = value is InterpolationMode mode ? mode : InterpolationMode.HighQualityBicubic;
         }
 
         /// <summary>挂起时的期望可见状态：记录挂起前普通窗与 StyleForm（收缩窗）的组合。</summary>
@@ -953,7 +972,7 @@ namespace SETUNA.Main
             if (StyleAppliIndex < _styleItems.Count)
             {
                 var num = 1;
-                var scrapBase = this;
+                IScrap scrapBase = this;
                 try
                 {
                     var cstyleItem = _styleItems[StyleAppliIndex];
@@ -1178,13 +1197,6 @@ namespace SETUNA.Main
 
         private Action _applyFinished;
 
-        // Token: 0x0200002B RID: 43
-        // (Invoke) Token: 0x060001A6 RID: 422
-        public delegate void ScrapEventHandler(object sender, ScrapEventArgs e);
-
-        // Token: 0x0200002D RID: 45
-        // (Invoke) Token: 0x060001AC RID: 428
-        public delegate void ScrapSubMenuHandler(object sender, ScrapMenuArgs e);
 
         private bool _visible = true;
 

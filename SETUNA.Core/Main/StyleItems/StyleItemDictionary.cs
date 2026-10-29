@@ -1,0 +1,87 @@
+﻿using System;
+using System.Collections.Generic;
+
+namespace SETUNA.Main.StyleItems
+{
+    // Token: 0x02000068 RID: 104
+    public class StyleItemDictionary
+    {
+        // Token: 0x0600039D RID: 925 RVA: 0x0001627C File Offset: 0x0001447C
+        protected StyleItemDictionary()
+        {
+        }
+
+        // Token: 0x0600039E RID: 926 RVA: 0x00016284 File Offset: 0x00014484
+        public static CStyleItem[] GetAllStyleItems()
+        {
+            return new List<CStyleItem>
+            {
+                new CMoveStyleItem(),
+                new CScaleStyleItem(),
+                new CMarginStyleItem(),
+                new COpacityStyleItem(),
+                new CCloseStyleItem(),
+                new CRotateStyleItem(),
+                new CCopyStyleItem(),
+                new CPasteStyleItem(),
+                new CImageBmpStyleItem(),
+                new CImageJpegStyleItem(),
+                new CImagePngStyleItem(),
+                new CCompactStyleItem(),
+                new CTrimStyleItem()
+                // Picasa 服务已停（2016），按迁移决策不注册；类型保留以兼容旧配置反序列化
+                // new CPicasaUploaderStyleItem()
+            }.ToArray();
+        }
+
+        // Token: 0x0600039F RID: 927 RVA: 0x00016338 File Offset: 0x00014538
+        public static Type[] GetStyleType()
+        {
+            var list = new List<Type>();
+            var allStyleItems = StyleItemDictionary.GetAllStyleItems();
+            for (var i = 0; i < allStyleItems.Length; i++)
+            {
+                list.Add(allStyleItems[i].GetType());
+            }
+            // Picasa 服务虽停用，但旧配置（SetunaConfig.xml）可能含该类型节点：
+            // 不进 extraTypes 会导致 XmlSerializer 反序列化整体失败、用户配置全损回退默认
+            list.Add(typeof(CPicasaUploaderStyleItem));
+            return list.ToArray();
+        }
+
+        public static bool CanRestore(Type styleType)
+        {
+            if (!styleType?.IsSubclassOf(typeof(CStyleItem)) ?? false)
+            {
+                return false;
+            }
+
+            if (styleType == typeof(CScaleStyleItem))
+            {
+                return true;
+            }
+
+            if (styleType == typeof(CMarginStyleItem))
+            {
+                return true;
+            }
+
+            if (styleType == typeof(COpacityStyleItem))
+            {
+                return true;
+            }
+
+            if (styleType == typeof(CRotateStyleItem))
+            {
+                return true;
+            }
+
+            if (styleType == typeof(CCompactStyleItem))
+            {
+                return true;
+            }
+
+            return false;
+        }
+    }
+}
