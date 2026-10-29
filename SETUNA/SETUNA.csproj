@@ -11,8 +11,8 @@
     <AssemblyProduct>SETUNA</AssemblyProduct>
     <AssemblyCompany>clearup</AssemblyCompany>
     <AssemblyCopyright>Copyright (C) 2008 CLEARUP</AssemblyCopyright>
-    <AssemblyVersion>3.0.13.0</AssemblyVersion>
-    <AssemblyInformationalVersion>3.0.13</AssemblyInformationalVersion>
+    <AssemblyVersion>3.0.14.0</AssemblyVersion>
+    <AssemblyInformationalVersion>3.0.14</AssemblyInformationalVersion>
     <NeutralResourcesLanguage>zh-CN</NeutralResourcesLanguage>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
