@@ -45,10 +45,10 @@ jobs:
       run: dotnet build SETUNATests/SETUNATests.csproj --configuration Release --no-restore || echo "Test project build failed, continuing..."
       
     - name: Publish single-file (Framework dependent)
-      run: dotnet publish SETUNA/SETUNA.csproj --configuration Release --output ./publish-framework --self-contained false --runtime win-x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:PublishTrimmed=true -p:TrimMode=link
+      run: dotnet publish SETUNA/SETUNA.csproj --configuration Release --output ./publish-framework --self-contained false --runtime win-x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
       
     - name: Publish single-file (Self-contained)
-      run: dotnet publish SETUNA/SETUNA.csproj --configuration Release --output ./publish-self-contained --self-contained true --runtime win-x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:PublishTrimmed=true -p:TrimMode=link
+      run: dotnet publish SETUNA/SETUNA.csproj --configuration Release --output ./publish-self-contained --self-contained true --runtime win-x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
       
     - name: Get version info
       id: version
