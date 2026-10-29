@@ -348,3 +348,12 @@ MigrationBackup/
 
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
+
+# All dot-directories (tool caches, agent configs)
+.*/
+!.github/
+
+# Avalonia 打包产物
+publish-framework/
+publish-self-contained/
+*.zip

@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SETUNA\SETUNA.csproj" />
+    <ProjectReference Include="..\SETUNA.Core\SETUNA.Core.csproj" />
   </ItemGroup>
 
 </Project>

@@ -43,7 +43,7 @@ namespace SETUNA.Main
                         " x ",
                         scrapBase.Height
                     });
-                    var toolStripMenuItem = new ToolStripMenuItem(text, scrapBase.GetThumbnail(), new EventHandler(_scrapbook.BindForm.OnActiveScrapInList))
+                    var toolStripMenuItem = new ToolStripMenuItem(text, scrapBase.GetThumbnail(), new EventHandler(SETUNA.Mainform.Instance.OnActiveScrapInList))
                     {
                         Tag = scrapBase,
                         ImageScaling = ToolStripItemImageScaling.None
