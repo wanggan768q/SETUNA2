@@ -5,7 +5,6 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
-using SETUNA.Avalonia.Bridging;
 using SETUNA.Core.Platform;
 
 namespace SETUNA.Avalonia.Views
@@ -44,7 +43,7 @@ namespace SETUNA.Avalonia.Views
 
             Position = new PixelPoint(monitor.Bounds.X, monitor.Bounds.Y);
             // 窗口尺寸是 DIP：物理像素 / 缩放，保证遮罩恰好覆盖屏幕
-            var scale = RenderScaling > 0 ? RenderScaling : 1.0;
+            var scale = this.RenderScale();
             Width = monitor.Bounds.Width / scale;
             Height = monitor.Bounds.Height / scale;
 

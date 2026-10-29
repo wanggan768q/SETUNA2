@@ -188,11 +188,6 @@ namespace SETUNA.Avalonia
                 }
             }
             _previewImage = wb;
-            if (_previewImage == null)
-            {
-                return;
-            }
-
             _previewSource = source;
             if (_previewForm == null)
             {
@@ -202,7 +197,7 @@ namespace SETUNA.Avalonia
             var capture = SETUNA.Core.Platform.PlatformServices.IsRegistered
                 ? SETUNA.Core.Platform.PlatformServices.Instance.ScreenCapture
                 : null;
-            var workArea = capture?.GetMonitors()[0].WorkingArea ?? new System.Drawing.Rectangle(0, 0, 1920, 1080);
+            var workArea = capture?.GetMonitors()[0].WorkingArea ?? ScreenFallback.WorkArea;
 
             // 缩略图锚点 = 绳上该项中心；原图位置 = 贴图当前位置
             var anchor = System.Drawing.Point.Empty;
@@ -358,7 +353,7 @@ namespace SETUNA.Avalonia
         /// <summary>光标是否在绳窗矩形外扩 12px 内（物理像素）。</summary>
         private bool IsPointerNearRopeForm(System.Drawing.Point cursor)
         {
-            var scale = _ropeForm.RenderScaling > 0 ? _ropeForm.RenderScaling : 1.0;
+            var scale = _ropeForm.RenderScale();
             var rect = new Rectangle(
                 _ropeForm.Position.X,
                 _ropeForm.Position.Y,
@@ -530,7 +525,7 @@ namespace SETUNA.Avalonia
                 : null;
             var work = _ropeForm != null
                 ? capture.GetMonitorFromPoint(new Rectangle(_ropeForm.Position.X, _ropeForm.Position.Y, 0, 0).Location).WorkingArea
-                : capture?.GetMonitors()[0].WorkingArea ?? new Rectangle(0, 0, 1920, 1080);
+                : capture?.GetMonitors()[0].WorkingArea ?? ScreenFallback.WorkArea;
             return work.Height > work.Width;
         }
 

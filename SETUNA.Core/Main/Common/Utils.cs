@@ -145,7 +145,8 @@ namespace SETUNA.Main
             return null;
         }
 
-        public static async void DownloadImage(string url, Action<Bitmap> finished)
+        // async Task（非事件处理器禁止 async void）；调用方用 _ = 丢弃，异常已在本方法内全量捕获
+        public static async Task DownloadImage(string url, Action<Bitmap> finished)
         {
             var filePath = Path.Combine(Cache.CacheManager.Path, string.Format("TEMP_{0}_{1}.png", DateTime.Now.Ticks, Math.Abs(url.GetHashCode())));
             Bitmap bitmap = null;

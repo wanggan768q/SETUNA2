@@ -10,7 +10,8 @@ namespace SETUNA.Main
         {
             this.url = url;
             this.point = point;
-            BitmapUtils.DownloadImage(url, image =>
+            // 丢弃 Task：DownloadImage 内部已全量捕获异常，无未观察异常风险
+            _ = BitmapUtils.DownloadImage(url, image =>
             {
                 if (width != 0 && height != 0)
                 {

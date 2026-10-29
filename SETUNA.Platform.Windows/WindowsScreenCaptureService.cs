@@ -30,10 +30,7 @@ namespace SETUNA.Platform.Windows
             }
             finally
             {
-                if (destDc != IntPtr.Zero)
-                {
-                    FinallyReleaseDc(bounds, bitmap);
-                }
+                // destDc 的 ReleaseHdc 由 using（Graphics.Dispose）配对兜底
                 if (screenDc != IntPtr.Zero)
                 {
                     NativeMethods.ReleaseDC(IntPtr.Zero, screenDc);
@@ -66,15 +63,11 @@ namespace SETUNA.Platform.Windows
                 }
                 return n > 0 ? (int)(sum / n) : -1;
             }
-            catch
+            catch (Exception ex)
             {
+                Console.WriteLine($"ProbeBrightness failed: {ex.Message}");
                 return -1;
             }
-        }
-
-        private void FinallyReleaseDc(Rectangle bounds, Bitmap bitmap)
-        {
-            // GetHdc 已在 using 内 ReleaseHdc 配对（Graphics.Dispose 兜底）；此处仅需标记结构
         }
 
         public IReadOnlyList<MonitorInfo> GetMonitors()

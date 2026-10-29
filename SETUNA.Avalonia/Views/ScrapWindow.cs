@@ -330,7 +330,7 @@ namespace SETUNA.Avalonia.Views
         public DrawingPoint TargetLocation { get => Location; set { _ptTarget = value; _blTargetSet = true; StartOpacityTimerIfNeeded(); } }
 
         /// <summary>当前屏幕 DPI 缩放（Width/Height 是 DIP，IScrap 几何契约是物理像素，边界换算）。</summary>
-        private double ScaleFactor => RenderScaling > 0 ? RenderScaling : 1.0;
+        private double ScaleFactor => this.RenderScale();
 
         public DrawingSize Size
         {
