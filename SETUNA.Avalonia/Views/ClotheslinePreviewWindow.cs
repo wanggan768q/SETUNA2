@@ -59,7 +59,7 @@ namespace SETUNA.Avalonia.Views
                 new System.Drawing.Size(display.Width, display.Height), workArea, thumbnailAnchor, originalLocation);
 
             // 窗口尺寸 = 显示区 + 边框（物理像素换 DIP）
-            var scale = RenderScaling > 0 ? RenderScaling : 1.0;
+            var scale = this.RenderScale();
             Position = new PixelPoint(location.X - FramePadding, location.Y - FramePadding);
             Width = (display.Width + FramePadding * 2) / scale;
             Height = (display.Height + FramePadding * 2) / scale;
@@ -80,7 +80,7 @@ namespace SETUNA.Avalonia.Views
         {
             get
             {
-                var scale = RenderScaling > 0 ? RenderScaling : 1.0;
+                var scale = this.RenderScale();
                 return new System.Drawing.Rectangle(Position.X, Position.Y,
                     (int)(Width * scale), (int)(Height * scale));
             }

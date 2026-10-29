@@ -7,7 +7,6 @@ using SETUNA.Main.Option;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Media.Imaging;
-using SETUNA.Avalonia.Bridging;
 using SETUNA.Avalonia.Views;
 using SETUNA.Core.Platform;
 using SETUNA.Main;
@@ -544,7 +543,11 @@ namespace SETUNA.Avalonia
                 var capture = PlatformServices.Instance.ScreenCapture;
                 var monitor = capture.GetMonitors()[0];
                 var snapshot = capture.CaptureScreen(monitor.Bounds);
-                Log($"capture done, bounds={monitor.Bounds}, brightness={SETUNA.Platform.Windows.WindowsScreenCaptureService.ProbeBrightness(snapshot)}");
+                Log($"capture done, bounds={monitor.Bounds}");
+#if DEBUG
+                // 抓屏诊断探针（副屏全黑问题排查设施），Release 不编译
+                Log($"capture brightness={SETUNA.Platform.Windows.WindowsScreenCaptureService.ProbeBrightness(snapshot)}");
+#endif
                 // 截图含光标（对齐旧 CaptureForm.CopyFromScreen 的 CursorEnabled 语义）
                 if (Option.Setuna.CursorEnabled)
                 {
@@ -784,8 +787,9 @@ namespace SETUNA.Avalonia
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                Log($"TryLoadIconData: {ex.Message}");
             }
             return null;
         }
@@ -819,8 +823,9 @@ namespace SETUNA.Avalonia
                 using var stream = new FileStream(path, FileMode.Open);
                 return (SetunaOption)serializer.Deserialize(stream);
             }
-            catch
+            catch (Exception ex)
             {
+                Log($"LoadOption 反序列化失败 {path}: {ex.Message}");
                 return SetunaOption.GetDefaultOption();
             }
         }
@@ -844,8 +849,9 @@ namespace SETUNA.Avalonia
                     return candidate;
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                Log($"ResolveConfigPath: {ex.Message}");
             }
             return null;
         }

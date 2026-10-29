@@ -74,14 +74,9 @@ namespace SETUNA.Avalonia.Views
                 Background = Brushes.Gray;
             }
 
-            // 物理像素 50×50 → DIP（对齐 ClotheslineWindow 布局换算）
-            Width = size / (RenderScaling > 0 ? RenderScaling : 1.0);
-            Height = size / (RenderScaling > 0 ? RenderScaling : 1.0);
-
-            // 定位：原图位置 + 双击点 - 窗半径（旧 ConvertScrapPosToCompact）
-            Position = new PixelPoint(
-                scrap.Location.X + _clickPoint.X - size / 2,
-                scrap.Location.Y + _clickPoint.Y - size / 2);
+            // 物理像素 50×50 → DIP；构造时 RenderScaling 可能未就绪（常为 1.0），
+            // Opened 后按实际缩放校正（ApplyDpiLayout）
+            ApplyDpiLayout();
 
             // 拖动 + 双击还原 + 键盘关闭（旧 CompactScrap_KeyDown）
             PointerPressed += OnPressed;
@@ -89,6 +84,27 @@ namespace SETUNA.Avalonia.Views
             PointerReleased += OnReleased;
             DoubleTapped += OnDoubleTapped;
             KeyDown += OnKeyDown;
+            Opened += (s, e) =>
+            {
+                ApplyDpiLayout();
+                Activate(); // Esc/Enter 依赖键盘焦点，显示后主动抢焦（贴图窗随后不抢回）
+            };
+        }
+
+        /// <summary>
+        /// 按 RenderScaling 把 50 物理像素换算成 DIP 尺寸并定位（旧 ConvertScrapPosToCompact）。
+        /// Opened 前后各调一次：构造时缩放常未就绪，显示后校正。
+        /// </summary>
+        private void ApplyDpiLayout()
+        {
+            var size = CompactGeometry.WindowSize;
+            var scale = this.RenderScale();
+            Width = size / scale;
+            Height = size / scale;
+            // 定位：原图位置 + 双击点 - 窗半径
+            Position = new PixelPoint(
+                scrap.Location.X + _clickPoint.X - size / 2,
+                scrap.Location.Y + _clickPoint.Y - size / 2);
         }
 
         private bool _dragging;
@@ -100,7 +116,7 @@ namespace SETUNA.Avalonia.Views
             if (props.IsLeftButtonPressed)
             {
                 _dragging = true;
-                var scale = RenderScaling > 0 ? RenderScaling : 1.0;
+                var scale = this.RenderScale();
                 var client = e.GetPosition(this);
                 var screenPt = new PixelPoint(
                     Position.X + (int)Math.Round(client.X * scale),
@@ -116,7 +132,7 @@ namespace SETUNA.Avalonia.Views
             {
                 return;
             }
-            var scale = RenderScaling > 0 ? RenderScaling : 1.0;
+            var scale = this.RenderScale();
             var client = e.GetPosition(this);
             var screen = new PixelPoint(
                 Position.X + (int)Math.Round(client.X * scale),

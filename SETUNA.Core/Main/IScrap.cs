@@ -27,6 +27,8 @@ namespace SETUNA.Main
         event ScrapEventHandler ClotheslineHangingChanged;
 
         // ===== 事件注册（ScrapBook 调用） =====
+        // 命名豁免：camelCase 系旧版 ScrapBase 事件注册方法名的迁移保真，
+        // 改名会同时牵动 WinForms 宿主与反编译对照基线，维持原名。
 
         void addScrapStyleEvent(IScrapStyleListener listener);
         void addScrapMenuEvent(IScrapMenuListener listener);

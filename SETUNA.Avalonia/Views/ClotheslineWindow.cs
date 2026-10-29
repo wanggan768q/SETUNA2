@@ -297,7 +297,7 @@ namespace SETUNA.Avalonia.Views
             }
             _draggingRope = true;
             // 屏幕物理坐标 = 窗口物理位置 + 客户区 DIP × 缩放（对齐 ScrapWindow 拖动修正）
-            var scale = RenderScaling > 0 ? RenderScaling : 1.0;
+            var scale = this.RenderScale();
             var client = e.GetPosition(this);
             var screenPt = new PixelPoint(
                 Position.X + (int)Math.Round(client.X * scale),
@@ -312,12 +312,12 @@ namespace SETUNA.Avalonia.Views
             if (!_draggingRope)
             {
                 // 悬停检测（驱动摆动加剧；命中不跟随摆动，spec 已定）
-                var scale = RenderScaling > 0 ? RenderScaling : 1.0;
+                var scale = this.RenderScale();
                 var clientPt = new DrawingPoint((int)Math.Round(pos.X * scale), (int)Math.Round(pos.Y * scale));
                 _hoverIndex = FindItemIndexAt(_itemRects, clientPt, _scrollOffset, _vertical);
                 return;
             }
-            var screenScale = RenderScaling > 0 ? RenderScaling : 1.0;
+            var screenScale = this.RenderScale();
             var screen = new PixelPoint(
                 Position.X + (int)Math.Round(pos.X * screenScale),
                 Position.Y + (int)Math.Round(pos.Y * screenScale));
@@ -340,9 +340,8 @@ namespace SETUNA.Avalonia.Views
 
         private void OnDoubleTapped(object sender, global::Avalonia.Input.TappedEventArgs e)
         {
-            var screen = (e.Source as Visual) is Visual v ? e.GetPosition(v).ToPixelPoint().ToDrawingPoint() : System.Drawing.Point.Empty;
             // 双击命中直接用窗口客户坐标
-            var tapScale = RenderScaling > 0 ? RenderScaling : 1.0;
+            var tapScale = this.RenderScale();
             var tapPos = e.GetPosition(this);
             var clientPt = new DrawingPoint(
                 (int)Math.Round(tapPos.X * tapScale),
@@ -358,13 +357,13 @@ namespace SETUNA.Avalonia.Views
 
         private int ClientMainLength()
         {
-            var scale = RenderScaling > 0 ? RenderScaling : 1.0;
+            var scale = this.RenderScale();
             return (int)Math.Round((_vertical ? Height : Width) * scale);
         }
 
         private int MaxScrollOffset()
         {
-            var scale = RenderScaling > 0 ? RenderScaling : 1.0;
+            var scale = this.RenderScale();
             var clientMain = (int)Math.Round((_vertical ? Height : Width) * scale);
             var max = _contentLength - clientMain;
             return max > 0 ? max : 0;
@@ -387,7 +386,7 @@ namespace SETUNA.Avalonia.Views
             var screen = PlatformServices.IsRegistered
                 ? PlatformServices.Instance.ScreenCapture.GetMonitorFromPoint(new DrawingPoint(Position.X, Position.Y))
                 : null;
-            var work = screen?.WorkingArea ?? new System.Drawing.Rectangle(0, 0, 1920, 1080);
+            var work = screen?.WorkingArea ?? ScreenFallback.WorkArea;
 
             int width, height;
             if (_vertical)
@@ -404,7 +403,7 @@ namespace SETUNA.Avalonia.Views
             var newY = Math.Max(work.Top, Math.Min(Position.Y, work.Bottom - height - (_vertical ? 0 : BottomMargin)));
             Position = new PixelPoint(newX, newY);
             // 内容尺寸按物理像素计算 → 窗口 DIP = px / 缩放
-            var scale = RenderScaling > 0 ? RenderScaling : 1.0;
+            var scale = this.RenderScale();
             Width = width / scale;
             Height = height / scale;
         }
@@ -518,7 +517,7 @@ namespace SETUNA.Avalonia.Views
                 }
 
                 // 物理像素 rect → 绘制坐标系（DIP）
-                var drawScale = RenderScaling > 0 ? RenderScaling : 1.0;
+                var drawScale = this.RenderScale();
                 var avaloniaRect = new Rect(rx / drawScale, ry / drawScale, rect.Width / drawScale, rect.Height / drawScale);
                 // 白框投影（环境光方向固定，不随摆动转）
                 context.FillRectangle(shadowBrush, new Rect(avaloniaRect.X + 6, avaloniaRect.Y + 7, avaloniaRect.Width, avaloniaRect.Height));
