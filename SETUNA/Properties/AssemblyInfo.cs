@@ -13,4 +13,4 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyCompany("clearup")]
 [assembly: NeutralResourcesLanguage("zh-CN")]
-[assembly: AssemblyVersion("3.0.7.0")]
+[assembly: AssemblyVersion("3.0.8.0")]
